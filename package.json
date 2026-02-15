@@ -54,7 +54,7 @@
     "@vitest/ui": "^1.2.0",
     "@vitest/coverage-v8": "^1.2.0",
     "@playwright/test": "^1.41.0",
-    "happy-dom": "^13.0.0",
+    "happy-dom": "^20.0.2",
     "msw": "^2.0.0",
     "eslint": "^8.56.0",
     "@typescript-eslint/parser": "^6.19.0",
