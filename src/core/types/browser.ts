@@ -152,7 +152,8 @@ export interface CanvasElement {
   selector: string;
   width: number;
   height: number;
-  context: "2d" | "webgl" | "webgl2" | "unknown";
+  /** The type of rendering context used by the canvas */
+  renderingContext: "2d" | "webgl" | "webgl2" | "unknown";
 }
 
 /**

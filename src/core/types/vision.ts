@@ -121,7 +121,8 @@ export interface Screenshot {
   width: number;
   height: number;
   timestamp: string;
-  compressed: boolean;
+  /** Whether the screenshot data has been compressed */
+  isCompressed: boolean;
 }
 
 /**

@@ -118,10 +118,13 @@ export interface CanvasRules {
 }
 
 /**
- * Rule for how to interact with canvas elements
+ * Rule for how to interact with canvas elements.
+ * Note: 'hybrid' is not a valid fallback because it requires both vision and coordinate
+ * strategies to work together, which doesn't make sense as a fallback mechanism.
  */
 export interface CanvasInteractionRule {
   strategy: "vision" | "coordinate" | "hybrid";
+  /** Fallback strategy if primary fails. 'hybrid' is excluded as it's not a valid fallback. */
   fallback?: "vision" | "coordinate";
   /** Wait time after interaction (ms) */
   waitAfter?: number;
