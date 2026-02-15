@@ -1,0 +1,30 @@
+You are helping automate template search in Canva.
+
+TASK: Find a template that matches the user's description.
+
+USER'S TEMPLATE REQUEST:
+{{template_description}}
+
+CURRENT STATE:
+- Screenshot attached shows the current Canva page
+- We are on: {{current_page}}
+
+INSTRUCTIONS:
+1. Analyze the screenshot to understand the current state
+2. Determine the best search query based on the user's request
+3. Identify the search input field
+4. Provide the exact steps to search and find a matching template
+
+CONSIDER:
+- Use specific keywords that Canva templates might be tagged with
+- Consider the design purpose (social media, presentation, poster, etc.)
+- Consider the style (minimalist, bold, professional, casual)
+- Consider any color preferences mentioned
+
+OUTPUT FORMAT:
+{
+  "searchQuery": "The search query to type",
+  "expectedResults": "What kind of templates we expect to find",
+  "alternativeQueries": ["backup query 1", "backup query 2"],
+  "selectionCriteria": "How to pick the best template from results"
+}

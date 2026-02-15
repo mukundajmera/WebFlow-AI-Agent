@@ -1,0 +1,47 @@
+# Canva Adapter Selectors
+# CSS selectors for Canva UI elements
+# These may change with Canva updates - use with self-healing strategies
+
+# Navigation
+homeLogo: '[data-testid="brand-logo"]'
+searchBox: '[data-testid="search-input"]'
+createButton: '[data-testid="create-blank-button"]'
+
+# Template Selection
+templateGrid: '[data-testid="template-grid"]'
+templateCard: '[data-testid="template-item"]'
+useTemplateButton: '[data-testid="use-template-button"]'
+
+# Editor
+editorCanvas: '[data-testid="design-surface"]'
+canvasContainer: ".canvas-container"
+layerPanel: '[data-testid="layers-panel"]'
+
+# Text Editing
+textLayer: '[data-testid="text-layer"]'
+textInput: '[data-testid="text-input"]'
+fontSelector: '[data-testid="font-selector"]'
+fontSizeInput: '[data-testid="font-size-input"]'
+
+# Image Handling
+imageLayer: '[data-testid="image-layer"]'
+uploadButton: '[data-testid="upload-button"]'
+replaceButton: '[data-testid="replace-button"]'
+
+# Export
+shareButton: '[data-testid="share-button"]'
+downloadButton: '[data-testid="download-button"]'
+exportFormatSelector: '[data-testid="format-selector"]'
+exportButton: '[data-testid="export-button"]'
+
+# Common Dialogs
+modal: '[role="dialog"]'
+modalCloseButton: '[data-testid="modal-close"]'
+confirmButton: '[data-testid="confirm-button"]'
+cancelButton: '[data-testid="cancel-button"]'
+
+# Toolbar
+toolbar: '[data-testid="toolbar"]'
+undoButton: '[data-testid="undo-button"]'
+redoButton: '[data-testid="redo-button"]'
+zoomControl: '[data-testid="zoom-control"]'

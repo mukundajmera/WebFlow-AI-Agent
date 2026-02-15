@@ -1,0 +1,6 @@
+{
+  "name": "playwright-mcp",
+  "command": "npx",
+  "args": ["-y", "@executeautomation/playwright-mcp-server"],
+  "env": {}
+}
