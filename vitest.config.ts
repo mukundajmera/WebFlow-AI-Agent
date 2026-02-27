@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath, URL } from "node:url";
+import { join } from "node:path";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -18,13 +19,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "~core": `${__dirname}src/core`,
-      "~sidepanel": `${__dirname}src/sidepanel`,
-      "~background": `${__dirname}src/background`,
-      "~contents": `${__dirname}src/contents`,
-      "~adapters": `${__dirname}adapters`,
-      "~types": `${__dirname}src/core/types`,
-      "~utils": `${__dirname}src/core/utils`,
+      "~core": join(__dirname, "src/core"),
+      "~sidepanel": join(__dirname, "src/sidepanel"),
+      "~background": join(__dirname, "src/background"),
+      "~contents": join(__dirname, "src/contents"),
+      "~adapters": join(__dirname, "adapters"),
+      "~types": join(__dirname, "src/core/types"),
+      "~utils": join(__dirname, "src/core/utils"),
     },
   },
 });
