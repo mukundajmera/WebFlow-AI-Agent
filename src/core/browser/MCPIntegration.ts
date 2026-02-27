@@ -108,7 +108,8 @@ export class MCPIntegration {
 
   /**
    * Generic tool invocation. Builds a JSON-RPC 2.0 request and returns
-   * the result (or an error wrapper).
+   * the result (or an error wrapper). Arguments are validated against the
+   * tool's declared input schema when available.
    */
   async callTool(
     toolName: string,
@@ -116,6 +117,37 @@ export class MCPIntegration {
   ): Promise<MCPToolResult> {
     if (!this.initialized) {
       return { content: "", isError: true, metadata: { error: "MCP not initialized" } };
+    }
+
+    // Validate tool exists and args are a plain object
+    const toolDef = this.availableTools.find((t) => t.name === toolName);
+    if (!toolDef) {
+      return {
+        content: "",
+        isError: true,
+        metadata: { error: `Unknown tool: ${toolName}` },
+      };
+    }
+
+    if (args === null || typeof args !== "object" || Array.isArray(args)) {
+      return {
+        content: "",
+        isError: true,
+        metadata: { error: "Tool arguments must be a plain object" },
+      };
+    }
+
+    // Basic schema validation: check required fields when schema is available
+    if (toolDef.inputSchema?.required) {
+      for (const field of toolDef.inputSchema.required) {
+        if (!(field in args)) {
+          return {
+            content: "",
+            isError: true,
+            metadata: { error: `Missing required argument: ${field}` },
+          };
+        }
+      }
     }
 
     const request: MCPRequest = {

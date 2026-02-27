@@ -362,8 +362,17 @@ export class BrowserAgent {
     }
   }
 
-  /** Evaluate arbitrary JavaScript in the page context. */
+  /**
+   * Evaluate JavaScript in the page context.
+   *
+   * **Security note**: Only call with trusted input from the orchestration
+   * layer. Never pass user-supplied strings directly.
+   */
   async evaluate(script: string): Promise<any> {
+    if (!script || typeof script !== "string") {
+      throw new Error("evaluate requires a non-empty script string");
+    }
+
     const tab = await this.getCurrentTab();
     const result = await this.sendToContentScript(tab.id!, {
       action: "evaluate",
