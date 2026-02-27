@@ -55,5 +55,6 @@ module.exports = {
     ".plasmo",
     "coverage",
     "*.config.js",
+    "*.config.cjs",
   ],
 };

@@ -6,8 +6,14 @@ import type { ActionResult } from "./common";
 import type { LLMConfig } from "./llm";
 import type { Screenshot } from "./vision";
 import type { BrowserAction, DOMState } from "./browser";
-import type { AdapterKnowledge, BaseAdapter, DataMapping } from "./adapter";
 import type { AssetCollection, DataRow, DataSource } from "./data";
+
+/**
+ * Mapping between design fields and data columns
+ */
+export interface DataMapping {
+  [designField: string]: string;
+}
 
 /**
  * A job represents a complete automation request
@@ -108,9 +114,20 @@ export interface ExecutionContext {
   dataRows?: DataRow[];
   assets?: AssetCollection;
   config: JobConfig;
-  adapter: BaseAdapter;
+  /** Adapter name - actual adapter instance is resolved at runtime */
+  adapterName: string;
   /** Dynamic variables set during execution */
   variables?: Record<string, unknown>;
+}
+
+/**
+ * Knowledge base for an adapter (simplified for orchestration use)
+ */
+export interface AdapterKnowledgeBase {
+  /** Map of element names to CSS selectors */
+  selectors: Record<string, string>;
+  /** Tips for working with this site */
+  tips?: string[];
 }
 
 /**
@@ -120,7 +137,7 @@ export interface Observation {
   screenshot?: Screenshot;
   domState: DOMState;
   task: Task;
-  adapterKnowledge: AdapterKnowledge;
+  adapterKnowledge: AdapterKnowledgeBase;
   previousActions: BrowserAction[];
   attempt: number;
 }

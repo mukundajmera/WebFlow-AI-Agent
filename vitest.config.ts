@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
-import path from "path";
+import { fileURLToPath, URL } from "node:url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   test: {
@@ -16,13 +18,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "~core": path.resolve(__dirname, "./src/core"),
-      "~sidepanel": path.resolve(__dirname, "./src/sidepanel"),
-      "~background": path.resolve(__dirname, "./src/background"),
-      "~contents": path.resolve(__dirname, "./src/contents"),
-      "~adapters": path.resolve(__dirname, "./adapters"),
-      "~types": path.resolve(__dirname, "./src/core/types"),
-      "~utils": path.resolve(__dirname, "./src/core/utils"),
+      "~core": `${__dirname}src/core`,
+      "~sidepanel": `${__dirname}src/sidepanel`,
+      "~background": `${__dirname}src/background`,
+      "~contents": `${__dirname}src/contents`,
+      "~adapters": `${__dirname}adapters`,
+      "~types": `${__dirname}src/core/types`,
+      "~utils": `${__dirname}src/core/utils`,
     },
   },
 });

@@ -3,7 +3,6 @@
  */
 
 import type { BoundingBox, ElementSelector } from "./common";
-import type { JSONSchema } from "./llm";
 
 /**
  * Types of browser actions that can be executed
@@ -174,31 +173,6 @@ export interface MCPAction {
 }
 
 /**
- * MCP tool definition
+ * Re-export MCP types from the dedicated mcp module
  */
-export interface MCPToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: JSONSchema;
-}
-
-/**
- * Result from an MCP tool call
- */
-export interface MCPToolResult {
-  content: string;
-  isError: boolean;
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * MCP server configuration
- */
-export interface MCPServerConfig {
-  /** Command to run (e.g., "npx") */
-  command: string;
-  /** Command arguments */
-  args: string[];
-  /** Environment variables */
-  env?: Record<string, string>;
-}
+export type { MCPToolDefinition, MCPToolResult, MCPServerConfig } from "./mcp";

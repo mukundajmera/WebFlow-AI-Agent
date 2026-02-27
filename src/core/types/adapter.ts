@@ -2,9 +2,13 @@
  * Adapter system types for website-specific logic
  */
 
-import type { ActionResult, BoundingBox } from "./common";
+import type { ActionResult } from "./common";
 import type { BrowserAction, DOMState } from "./browser";
 import type { Screenshot } from "./vision";
+import type { Task, TaskType, TaskStatus, Observation, DataMapping } from "./orchestration";
+
+// Re-export imported types for convenience
+export type { Task, TaskType, TaskStatus, Observation, DataMapping };
 
 /**
  * Base interface that all website adapters must implement
@@ -148,13 +152,6 @@ export interface TaskTemplate {
 export type TaskTemplateMap = Record<string, TaskTemplate>;
 
 /**
- * Mapping between design fields and data columns
- */
-export interface DataMapping {
-  [designField: string]: string;
-}
-
-/**
  * Condition for task execution
  */
 export interface TaskCondition {
@@ -163,51 +160,3 @@ export interface TaskCondition {
   /** Action to take if condition fails */
   action: "skip" | "fail" | "warn";
 }
-
-/**
- * Current observation state passed to adapters
- */
-export interface Observation {
-  screenshot?: Screenshot;
-  domState: DOMState;
-  task: Task;
-  adapterKnowledge: AdapterKnowledge;
-  previousActions: BrowserAction[];
-  attempt: number;
-}
-
-/**
- * Task definition (imported from orchestration types, defined here for reference)
- */
-export interface Task {
-  id: string;
-  name: string;
-  type: TaskType;
-  goal: string;
-  requiresVision: boolean;
-  dependencies: string[];
-  status: TaskStatus;
-  attempts: number;
-  result?: ActionResult;
-  error?: string;
-}
-
-/**
- * Types of tasks
- */
-export type TaskType =
-  | "navigation"
-  | "search"
-  | "select"
-  | "edit_text"
-  | "replace_image"
-  | "export"
-  | "vision_select"
-  | "bulk_generate"
-  | "data_load"
-  | "custom";
-
-/**
- * Task execution status
- */
-export type TaskStatus = "pending" | "running" | "completed" | "failed" | "skipped";
