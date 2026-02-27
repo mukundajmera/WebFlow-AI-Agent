@@ -1,0 +1,60 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: ["./src/**/*.{js,jsx,ts,tsx}"],
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: "#e6f2ff",
+          100: "#b3d9ff",
+          200: "#80bfff",
+          300: "#4da6ff",
+          400: "#1a8cff",
+          500: "#0066cc",
+          600: "#0052a3",
+          700: "#003d7a",
+          800: "#002952",
+          900: "#001429",
+        },
+        secondary: {
+          50: "#f0f0f0",
+          100: "#d9d9d9",
+          200: "#bfbfbf",
+          300: "#a6a6a6",
+          400: "#8c8c8c",
+          500: "#6b7280",
+          600: "#595959",
+          700: "#374151",
+          800: "#262626",
+          900: "#1a1a1a",
+        },
+        success: "#10b981",
+        warning: "#f59e0b",
+        error: "#ef4444",
+        neutral: {
+          50: "#fafafa",
+          100: "#f5f5f5",
+          200: "#e5e5e5",
+          300: "#d4d4d4",
+          400: "#a3a3a3",
+          500: "#737373",
+          600: "#525252",
+          700: "#404040",
+          800: "#262626",
+          900: "#171717",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["Fira Code", "Consolas", "monospace"],
+      },
+      spacing: {
+        18: "4.5rem",
+        88: "22rem",
+        128: "32rem",
+      },
+    },
+  },
+  plugins: [],
+};

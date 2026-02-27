@@ -1,0 +1,135 @@
+# Canva Adapter Workflows
+# Multi-step task sequences for common Canva operations
+
+searchAndSelectTemplate:
+  description: "Search for a template and select it"
+  requirements:
+    - "Must be on Canva homepage or templates page"
+  steps:
+    - action: click
+      target: searchBox
+      description: "Click the search input"
+    - action: type
+      target: searchBox
+      value: "{{template_query}}"
+      description: "Enter search query"
+    - action: wait
+      condition:
+        type: element_visible
+        selector: '[data-testid="template-grid"]'
+      timeout: 5000
+      description: "Wait for template results"
+    - action: click
+      target: templateCard
+      description: "Click first matching template"
+    - action: wait
+      condition:
+        type: element_visible
+        selector: '[data-testid="use-template-button"]'
+      timeout: 3000
+      description: "Wait for template preview"
+    - action: click
+      target: useTemplateButton
+      description: "Click 'Use template' button"
+
+editTextLayer:
+  description: "Select and edit a text layer in the canvas"
+  requirements:
+    - "Must be in Canva editor with a design open"
+  steps:
+    - action: click
+      target:
+        type: semantic
+        description: "{{text_layer_description}}"
+      description: "Click the text layer to select it"
+    - action: wait
+      condition:
+        type: timeout
+        duration: 500
+      description: "Wait for layer selection"
+    - action: type
+      target: textInput
+      value: "{{new_text}}"
+      clearFirst: true
+      description: "Replace text content"
+    - action: click
+      target: canvas
+      description: "Click canvas to deselect"
+
+replaceImage:
+  description: "Replace an image in the design"
+  requirements:
+    - "Must be in Canva editor with a design open"
+  steps:
+    - action: click
+      target:
+        type: semantic
+        description: "{{image_layer_description}}"
+      description: "Click the image layer"
+    - action: wait
+      condition:
+        type: element_visible
+        selector: '[data-testid="replace-button"]'
+      timeout: 2000
+      description: "Wait for replace option"
+    - action: click
+      target: replaceButton
+      description: "Click replace button"
+    - action: upload
+      target: uploadButton
+      value: "{{image_path}}"
+      description: "Upload new image"
+
+exportDesign:
+  description: "Export the current design"
+  requirements:
+    - "Must be in Canva editor with a design open"
+  steps:
+    - action: click
+      target: shareButton
+      description: "Click Share button"
+    - action: wait
+      condition:
+        type: element_visible
+        selector: '[data-testid="download-button"]'
+      timeout: 3000
+      description: "Wait for share menu"
+    - action: click
+      target: downloadButton
+      description: "Click Download option"
+    - action: click
+      target: exportFormatSelector
+      description: "Open format selector"
+      optional: true
+    - action: click
+      target:
+        type: semantic
+        description: "{{export_format}} format option"
+      description: "Select export format"
+    - action: click
+      target: exportButton
+      description: "Click Export/Download button"
+    - action: wait
+      condition:
+        type: timeout
+        duration: 5000
+      description: "Wait for export to complete"
+
+duplicateDesign:
+  description: "Duplicate the current design"
+  requirements:
+    - "Must be in Canva editor with a design open"
+  steps:
+    - action: click
+      target: '[data-testid="more-options"]'
+      description: "Open more options menu"
+    - action: click
+      target:
+        type: semantic
+        description: "Duplicate or Make a copy option"
+      description: "Click duplicate option"
+    - action: wait
+      condition:
+        type: timeout
+        duration: 3000
+      description: "Wait for duplication"

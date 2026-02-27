@@ -1,0 +1,6 @@
+{
+  "name": "browser-mcp",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-browser"],
+  "env": {}
+}

@@ -1,0 +1,84 @@
+{
+  "llmResponses": {
+    "templateSearch": {
+      "content": "{\"searchQuery\": \"minimalist social media\", \"expectedResults\": \"Instagram posts\"}",
+      "model": "llama-3.3-70b-versatile",
+      "usage": {
+        "promptTokens": 150,
+        "completionTokens": 50,
+        "totalTokens": 200
+      },
+      "finishReason": "stop"
+    },
+    "textEdit": {
+      "content": "{\"found\": true, \"location\": {\"x\": 400, \"y\": 300}, \"confidence\": 0.95}",
+      "model": "llama-3.3-70b-versatile",
+      "usage": {
+        "promptTokens": 200,
+        "completionTokens": 40,
+        "totalTokens": 240
+      },
+      "finishReason": "stop"
+    },
+    "verification": {
+      "content": "{\"success\": true, \"reasoning\": \"Text updated successfully\", \"confidence\": 0.92}",
+      "model": "llama-3.3-70b-versatile",
+      "usage": {
+        "promptTokens": 180,
+        "completionTokens": 35,
+        "totalTokens": 215
+      },
+      "finishReason": "stop"
+    }
+  },
+  "domStates": {
+    "canvaHomepage": {
+      "url": "https://www.canva.com/",
+      "title": "Canva: Design, Collaborate & Share",
+      "visibleElements": [
+        {
+          "tagName": "input",
+          "selector": "[data-testid=\"search-input\"]",
+          "text": "",
+          "isInteractive": true
+        },
+        {
+          "tagName": "button",
+          "selector": "[data-testid=\"create-blank-button\"]",
+          "text": "Create a design",
+          "isInteractive": true
+        }
+      ],
+      "forms": [],
+      "canvasElements": [],
+      "iframes": []
+    },
+    "canvaEditor": {
+      "url": "https://www.canva.com/design/abc123/edit",
+      "title": "Untitled Design - Canva",
+      "visibleElements": [
+        {
+          "tagName": "div",
+          "selector": "[data-testid=\"design-surface\"]",
+          "text": "",
+          "isInteractive": true
+        },
+        {
+          "tagName": "button",
+          "selector": "[data-testid=\"share-button\"]",
+          "text": "Share",
+          "isInteractive": true
+        }
+      ],
+      "forms": [],
+      "canvasElements": [
+        {
+          "selector": "canvas:nth-of-type(1)",
+          "width": 1920,
+          "height": 1080
+        }
+      ],
+      "iframes": []
+    }
+  }
+}

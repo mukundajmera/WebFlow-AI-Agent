@@ -1,0 +1,69 @@
+# Canva Canvas Interaction Rules
+# Rules for interacting with the Canva editor canvas
+
+canvas:
+  editorSelector: '[data-testid="design-surface"]'
+  requiresVision: true
+  
+  # The Canva canvas renders as a single element
+  # Individual design elements must be located visually
+  clickableAreas:
+    textLayers: ".text-layer"
+    images: ".image-layer"
+    shapes: ".shape-layer"
+
+interactions:
+  click:
+    # For clicking on canvas elements
+    strategy: hybrid
+    fallback: vision
+    waitAfter: 500
+    notes:
+      - "Always try CSS selector first if available"
+      - "Fall back to vision-based coordinate click"
+      - "Double-click often needed for text editing mode"
+
+  drag:
+    # For moving/resizing elements
+    strategy: coordinate
+    fallback: vision
+    waitAfter: 300
+    notes:
+      - "Use mouse down, move, mouse up sequence"
+      - "Vision helps verify element was moved correctly"
+
+  text:
+    # For text editing within the canvas
+    strategy: hybrid
+    fallback: vision
+    waitAfter: 200
+    notes:
+      - "Double-click to enter text editing mode"
+      - "Select all (Ctrl+A) before replacing text"
+      - "Click outside element to confirm changes"
+
+specialCases:
+  groupedElements:
+    description: "Elements grouped together"
+    strategy: "Click to select group, then double-click to enter group"
+    
+  lockedElements:
+    description: "Elements that are locked from editing"
+    strategy: "Check for lock icon, unlock via right-click menu if needed"
+    
+  hiddenElements:
+    description: "Elements hidden behind other elements"
+    strategy: "Use layers panel to select, or adjust z-index"
+
+verificationRules:
+  textChanged:
+    description: "Verify text was updated"
+    check: "Take screenshot and compare text content visually"
+    
+  imageReplaced:
+    description: "Verify image was replaced"
+    check: "Compare before/after screenshots for image area"
+    
+  elementSelected:
+    description: "Verify element is selected"
+    check: "Look for selection handles around element"

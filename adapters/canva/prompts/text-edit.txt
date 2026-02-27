@@ -1,0 +1,38 @@
+You are helping automate text editing in Canva.
+
+TASK: Edit text on a Canva design.
+
+TEXT TO FIND: {{original_text_description}}
+NEW TEXT: {{new_text}}
+
+CURRENT STATE:
+- Screenshot attached shows the current Canva editor
+- Design is loaded and visible
+
+INSTRUCTIONS:
+1. Analyze the screenshot to locate the text element
+2. Determine the exact position of the text to edit
+3. Provide coordinates for clicking on the text element
+4. Specify any special handling needed (double-click, select all, etc.)
+
+ELEMENT LOCATION:
+Based on the screenshot, identify:
+- The bounding box of the text element (x, y, width, height)
+- Whether the text is in a group or standalone
+- Whether it's currently selected or not
+
+OUTPUT FORMAT:
+{
+  "found": true/false,
+  "location": {
+    "x": <center x coordinate>,
+    "y": <center y coordinate>,
+    "bbox": {"x": 0, "y": 0, "width": 0, "height": 0}
+  },
+  "confidence": 0.0-1.0,
+  "interactionSteps": [
+    "step 1 description",
+    "step 2 description"
+  ],
+  "warnings": ["any potential issues"]
+}
