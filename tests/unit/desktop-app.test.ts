@@ -134,6 +134,55 @@ describe("Desktop App — main.ts patterns", () => {
     expect(mainSrc).toContain("before-quit");
     expect(mainSrc).toContain("stopAllMCPServers");
   });
+
+  it("imports autoUpdater from electron-updater", () => {
+    expect(mainSrc).toContain('import { autoUpdater } from "electron-updater"');
+  });
+
+  it("initialises auto-updater on app ready", () => {
+    expect(mainSrc).toContain("initAutoUpdater");
+  });
+
+  it("handles checking-for-update event", () => {
+    expect(mainSrc).toContain("checking-for-update");
+  });
+
+  it("handles update-available event", () => {
+    expect(mainSrc).toContain("update-available");
+  });
+
+  it("handles update-not-available event", () => {
+    expect(mainSrc).toContain("update-not-available");
+  });
+
+  it("handles download-progress event", () => {
+    expect(mainSrc).toContain("download-progress");
+  });
+
+  it("handles update-downloaded event with install prompt", () => {
+    expect(mainSrc).toContain("update-downloaded");
+    expect(mainSrc).toContain("quitAndInstall");
+  });
+
+  it("sends update status events to renderer via update-status", () => {
+    expect(mainSrc).toContain('"update-status"');
+  });
+
+  it("checks for updates on startup", () => {
+    expect(mainSrc).toContain("checkForUpdates");
+  });
+
+  it("has IPC handler for check-for-updates", () => {
+    expect(mainSrc).toContain('"check-for-updates"');
+  });
+
+  it("has IPC handler for install-update", () => {
+    expect(mainSrc).toContain('"install-update"');
+  });
+
+  it("disables autoDownload for user-prompted flow", () => {
+    expect(mainSrc).toContain("autoUpdater.autoDownload = false");
+  });
 });
 
 // ===========================================================================
@@ -175,5 +224,26 @@ describe("Desktop App — preload.ts patterns", () => {
 
   it("defines ElectronBridge interface", () => {
     expect(preloadSrc).toContain("ElectronBridge");
+  });
+
+  it("exposes checkForUpdates to renderer", () => {
+    expect(preloadSrc).toContain("checkForUpdates");
+    expect(preloadSrc).toContain('"check-for-updates"');
+  });
+
+  it("exposes installUpdate to renderer", () => {
+    expect(preloadSrc).toContain("installUpdate");
+    expect(preloadSrc).toContain('"install-update"');
+  });
+
+  it("exposes onUpdateStatus event listener", () => {
+    expect(preloadSrc).toContain("onUpdateStatus");
+    expect(preloadSrc).toContain('"update-status"');
+  });
+
+  it("ElectronBridge includes auto-update types", () => {
+    expect(preloadSrc).toContain("checkForUpdates:");
+    expect(preloadSrc).toContain("installUpdate:");
+    expect(preloadSrc).toContain("onUpdateStatus:");
   });
 });

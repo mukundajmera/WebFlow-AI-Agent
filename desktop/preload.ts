@@ -31,10 +31,17 @@ export interface ElectronBridge {
   // App info
   getAppPath: () => Promise<string>;
 
+  // Auto-update controls
+  checkForUpdates: () => Promise<{ success: boolean; version?: string; error?: string }>;
+  installUpdate: () => Promise<void>;
+
   // Event listeners
   onLMStudioStatus: (callback: (data: { running: boolean }) => void) => void;
   onOllamaStatus: (callback: (data: { running: boolean }) => void) => void;
   onTrayStartJob: (callback: () => void) => void;
+  onUpdateStatus: (
+    callback: (data: { status: string; version?: string; percent?: number; error?: string }) => void,
+  ) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +68,10 @@ contextBridge.exposeInMainWorld("electron", {
   // App info
   getAppPath: () => ipcRenderer.invoke("get-app-path"),
 
+  // Auto-update controls
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+
   // Event listeners (one-way from main → renderer)
   onLMStudioStatus: (callback: (data: { running: boolean }) => void) => {
     ipcRenderer.on("lmstudio-status", (_event, data) => callback(data));
@@ -70,5 +81,10 @@ contextBridge.exposeInMainWorld("electron", {
   },
   onTrayStartJob: (callback: () => void) => {
     ipcRenderer.on("tray-start-job", () => callback());
+  },
+  onUpdateStatus: (
+    callback: (data: { status: string; version?: string; percent?: number; error?: string }) => void,
+  ) => {
+    ipcRenderer.on("update-status", (_event, data) => callback(data));
   },
 } satisfies ElectronBridge);

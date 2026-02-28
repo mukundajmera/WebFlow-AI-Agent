@@ -2,8 +2,8 @@
  * BrowserAI Craft — Electron Main Process
  *
  * Creates the main application window, system tray, MCP server lifecycle
- * management (LM Studio / Ollama), Chrome extension loading, and IPC
- * handlers for native file operations.
+ * management (LM Studio / Ollama), Chrome extension loading, auto-update
+ * via electron-updater, and IPC handlers for native file operations.
  *
  * Cross-platform support: Windows, macOS, Linux.
  */
@@ -12,6 +12,7 @@ import { app, BrowserWindow, ipcMain, Tray, Menu, dialog } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
+import { autoUpdater } from "electron-updater";
 
 // ── Global references ──────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ app.on("ready", async () => {
   createSystemTray();
   await startMCPServers();
   await loadExtension();
+  initAutoUpdater();
 });
 
 app.on("window-all-closed", () => {
@@ -292,6 +294,97 @@ ipcMain.handle("save-file", async (_event, data: SaveFileRequest) => {
 });
 
 ipcMain.handle("get-app-path", () => app.getPath("userData"));
+
+// ── Auto-Update ────────────────────────────────────────────────────────────────
+
+/**
+ * Initialise electron-updater auto-update lifecycle.
+ *
+ * - Checks for updates on app start
+ * - Downloads updates in the background
+ * - Prompts the user to install or auto-installs on quit
+ * - Restarts to apply the update when the user accepts
+ */
+function initAutoUpdater(): void {
+  // Disable auto-download so we can notify the renderer first
+  autoUpdater.autoDownload = false;
+  // If the user chose "Later", install on next quit
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("checking-for-update", () => {
+    mainWindow?.webContents.send("update-status", { status: "checking" });
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    mainWindow?.webContents.send("update-status", {
+      status: "available",
+      version: info.version,
+    });
+
+    // Start background download
+    autoUpdater.downloadUpdate();
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    mainWindow?.webContents.send("update-status", { status: "up-to-date" });
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    mainWindow?.webContents.send("update-status", {
+      status: "downloading",
+      percent: progress.percent,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    mainWindow?.webContents.send("update-status", {
+      status: "downloaded",
+      version: info.version,
+    });
+
+    // Prompt user to install
+    dialog
+      .showMessageBox({
+        type: "info",
+        title: "Update Available",
+        message: `Version ${info.version} has been downloaded. Restart to apply the update?`,
+        buttons: ["Restart Now", "Later"],
+        defaultId: 0,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      });
+  });
+
+  autoUpdater.on("error", (error) => {
+    mainWindow?.webContents.send("update-status", {
+      status: "error",
+      error: error.message,
+    });
+  });
+
+  // Check for updates on startup
+  autoUpdater.checkForUpdates().catch((err: unknown) => {
+    // Non-fatal — may fail if no internet or no update server configured
+    console.log("[AutoUpdater] Update check failed:", (err as Error).message ?? err);
+  });
+}
+
+// IPC handler: allow renderer to trigger a manual check
+ipcMain.handle("check-for-updates", async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, version: result?.updateInfo?.version };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle("install-update", () => {
+  autoUpdater.quitAndInstall();
+});
 
 // ── Utility: Executable Path Resolution ────────────────────────────────────────
 
