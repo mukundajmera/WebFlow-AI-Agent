@@ -294,10 +294,26 @@ describe("GoogleSheetsConnector", () => {
     expect(access).toBe(false);
   });
 
-  it("setAccessToken allows setting the token directly", () => {
+  it("setAccessToken allows setting the token directly", async () => {
     connector.setAccessToken("my-token");
-    // No error means success — the token will be used in subsequent requests
-    expect(true).toBe(true);
+
+    // Verify the token is used in subsequent requests
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ properties: { title: "X" }, sheets: [] }),
+    } as Response);
+
+    await connector.getSheetMetadata(
+      "https://docs.google.com/spreadsheets/d/abc123/edit",
+    );
+
+    // The Authorization header should contain the token we set
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer my-token" }),
+      }),
+    );
   });
 });
 

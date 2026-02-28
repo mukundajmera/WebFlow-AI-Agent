@@ -14,6 +14,27 @@ const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const TOKEN_STORAGE_KEY = "google_sheets_access_token";
 
 /**
+ * Shape of the Google Sheets API `GET /spreadsheets/{id}` response
+ * (only the fields we use).
+ */
+interface SpreadsheetResource {
+  properties?: { title?: string };
+  sheets?: {
+    properties?: {
+      title?: string;
+      gridProperties?: { rowCount?: number; columnCount?: number };
+    };
+  }[];
+}
+
+/**
+ * Callback-based Chrome identity token getter.
+ */
+interface ChromeIdentityLike {
+  getAuthToken(options: { interactive: boolean }, callback: (token: string) => void): void;
+}
+
+/**
  * Metadata about a Google Sheets spreadsheet.
  */
 export interface SheetMetadata {
@@ -52,9 +73,9 @@ export class GoogleSheetsConnector {
     // In a real Chrome extension this would use chrome.identity
     // Here we provide a pluggable implementation.
     if (typeof chrome !== "undefined" && chrome.identity) {
+      const identity = chrome.identity as unknown as ChromeIdentityLike;
       const token = await new Promise<string>((resolve, reject) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (chrome.identity as any).getAuthToken({ interactive: true }, (tok: string) => {
+        identity.getAuthToken({ interactive: true }, (tok: string) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
           } else {
@@ -146,13 +167,11 @@ export class GoogleSheetsConnector {
       await this.handleApiError(response, sheetUrl);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const json = (await response.json()) as any;
+    const json = (await response.json()) as SpreadsheetResource;
 
     return {
       title: json.properties?.title ?? "Untitled",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sheets: (json.sheets ?? []).map((s: any) => ({
+      sheets: (json.sheets ?? []).map((s) => ({
         name: s.properties?.title ?? "Sheet",
         rowCount: s.properties?.gridProperties?.rowCount ?? 0,
         columnCount: s.properties?.gridProperties?.columnCount ?? 0,
