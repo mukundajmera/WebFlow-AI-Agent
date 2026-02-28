@@ -205,8 +205,10 @@ export type MessageType =
   | "RESUME_JOB"
   | "CANCEL_JOB"
   | "GET_JOB_STATUS"
+  | "GET_ALL_JOBS"
   | "UPDATE_CONFIG"
-  | "GET_CONFIG";
+  | "GET_CONFIG"
+  | "TEST_LLM_CONNECTION";
 
 /**
  * Message payload structure

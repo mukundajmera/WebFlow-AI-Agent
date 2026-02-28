@@ -1,16 +1,90 @@
 /**
  * BrowserAI Craft Background Service Worker
- * Main entry point for the extension's background logic
+ *
+ * Main entry point for the extension's background logic. Coordinates:
+ * - Service worker lifecycle (install / activate)
+ * - System initialisation (StateManager, JobQueue, StorageMonitor)
+ * - Message routing between side-panel, content scripts and core
+ * - Job management (start, pause, resume, cancel, status)
+ * - Configuration persistence
+ * - Interrupted-job recovery on startup
  */
 
-import type { Message, MessageResponse } from "~types";
+import type { Message, MessageResponse, Job, UserConfig } from "~types";
+import { DEFAULT_CONFIG } from "~types/config";
+import { StateManager } from "./core/StateManager";
+import { JobQueue } from "./core/JobQueue";
+import { StorageMonitor } from "./core/StorageMonitor";
+
+// ── Singleton instances ────────────────────────────────────────────────────────
+
+let stateManager: StateManager;
+let jobQueue: JobQueue;
+let storageMonitor: StorageMonitor;
+let systemsInitialised = false;
+
+// ── Initialisation ─────────────────────────────────────────────────────────────
 
 /**
- * Handle messages from the side panel and content scripts
+ * Bootstrap all core systems. Called on install, activate, and before
+ * the first message is handled (in case the service worker was restarted).
  */
+async function initializeSystems(): Promise<void> {
+  if (systemsInitialised) return;
+
+  try {
+    stateManager = new StateManager();
+    jobQueue = new JobQueue(stateManager);
+    storageMonitor = new StorageMonitor(stateManager);
+    storageMonitor.startMonitoring();
+
+    systemsInitialised = true;
+    console.info("[Background] Systems initialised");
+  } catch (error) {
+    // Log and propagate the error so callers do not proceed with undefined systems.
+    systemsInitialised = false;
+    console.error("[Background] Failed to initialise systems:", error);
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/**
+ * Ensure systems are ready before handling any message.
+ */
+async function ensureInitialised(): Promise<void> {
+  if (!systemsInitialised) {
+    await initializeSystems();
+  }
+}
+
+// ── Service Worker Lifecycle ───────────────────────────────────────────────────
+
+chrome.runtime.onInstalled.addListener((details) => {
+  initializeSystems().then(async () => {
+    if (details.reason === "install") {
+      console.info("[Background] Extension installed — setting default config");
+      await stateManager.saveConfig(DEFAULT_CONFIG);
+    } else if (details.reason === "update") {
+      console.info("[Background] Extension updated from", details.previousVersion);
+    }
+  });
+});
+
+/**
+ * Listen for side panel open action
+ */
+chrome.action.onClicked.addListener(async (tab) => {
+  if (tab.id) {
+    await chrome.sidePanel.open({ tabId: tab.id });
+  }
+});
+
+// ── Message Handling ───────────────────────────────────────────────────────────
+
 chrome.runtime.onMessage.addListener(
   (message: Message, _sender, sendResponse: (response: MessageResponse) => void) => {
-    handleMessage(message)
+    ensureInitialised()
+      .then(() => handleMessage(message))
       .then((response) => sendResponse(response))
       .catch((error) => sendResponse({ success: false, error: String(error) }));
 
@@ -20,7 +94,7 @@ chrome.runtime.onMessage.addListener(
 );
 
 /**
- * Process incoming messages
+ * Route an incoming message to the appropriate handler.
  */
 async function handleMessage(message: Message): Promise<MessageResponse> {
   switch (message.type) {
@@ -39,20 +113,25 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
     case "GET_JOB_STATUS":
       return handleGetJobStatus(message.payload as { jobId: string });
 
+    case "GET_ALL_JOBS":
+      return handleGetAllJobs();
+
     case "GET_CONFIG":
       return handleGetConfig();
 
     case "UPDATE_CONFIG":
-      return handleUpdateConfig(message.payload);
+      return handleUpdateConfig(message.payload as Partial<UserConfig>);
+
+    case "TEST_LLM_CONNECTION":
+      return handleTestLLMConnection();
 
     default:
       return { success: false, error: `Unknown message type: ${message.type}` };
   }
 }
 
-/**
- * Start a new automation job
- */
+// ── Job Handlers ───────────────────────────────────────────────────────────────
+
 async function handleStartJob(payload: { prompt: string }): Promise<MessageResponse> {
   const { prompt } = payload;
 
@@ -60,121 +139,228 @@ async function handleStartJob(payload: { prompt: string }): Promise<MessageRespo
     return { success: false, error: "Prompt is required" };
   }
 
-  // TODO: Implement job creation and orchestration
   console.info("[Background] Starting job with prompt:", prompt);
+
+  const config = await stateManager.getConfig();
+  const job: Job = {
+    id: crypto.randomUUID(),
+    prompt,
+    config: {
+      llmProvider: config.llm.providers[config.llm.defaultProvider],
+      templateMode: config.defaults?.templateMode ?? "same",
+      exportFormat: config.defaults?.exportFormat ?? "png",
+    },
+    tasks: [],
+    status: "queued",
+    progress: 0,
+    currentTaskIndex: 0,
+    createdAt: new Date().toISOString(),
+    results: [],
+    errors: [],
+  };
+
+  await jobQueue.enqueue(job);
 
   return {
     success: true,
-    data: {
-      jobId: crypto.randomUUID(),
-      status: "queued",
-      message: "Job created successfully",
-    },
+    data: { jobId: job.id, status: job.status, message: "Job created successfully" },
   };
 }
 
-/**
- * Pause a running job
- */
 async function handlePauseJob(payload: { jobId: string }): Promise<MessageResponse> {
   const { jobId } = payload;
+  if (!jobId) return { success: false, error: "Job ID is required" };
 
-  if (!jobId) {
-    return { success: false, error: "Job ID is required" };
-  }
-
-  // TODO: Implement job pausing
   console.info("[Background] Pausing job:", jobId);
+  await stateManager.pauseJob(jobId);
 
   return { success: true, data: { jobId, status: "paused" } };
 }
 
-/**
- * Resume a paused job
- */
 async function handleResumeJob(payload: { jobId: string }): Promise<MessageResponse> {
   const { jobId } = payload;
+  if (!jobId) return { success: false, error: "Job ID is required" };
 
-  if (!jobId) {
-    return { success: false, error: "Job ID is required" };
-  }
-
-  // TODO: Implement job resuming
   console.info("[Background] Resuming job:", jobId);
+  await stateManager.resumeJob(jobId);
 
   return { success: true, data: { jobId, status: "running" } };
 }
 
-/**
- * Cancel a job
- */
 async function handleCancelJob(payload: { jobId: string }): Promise<MessageResponse> {
   const { jobId } = payload;
+  if (!jobId) return { success: false, error: "Job ID is required" };
 
-  if (!jobId) {
-    return { success: false, error: "Job ID is required" };
-  }
-
-  // TODO: Implement job cancellation
   console.info("[Background] Cancelling job:", jobId);
+  await stateManager.cancelJob(jobId);
 
   return { success: true, data: { jobId, status: "cancelled" } };
 }
 
-/**
- * Get the status of a job
- */
 async function handleGetJobStatus(payload: { jobId: string }): Promise<MessageResponse> {
   const { jobId } = payload;
+  if (!jobId) return { success: false, error: "Job ID is required" };
 
-  if (!jobId) {
-    return { success: false, error: "Job ID is required" };
-  }
-
-  // TODO: Implement job status retrieval
   console.info("[Background] Getting status for job:", jobId);
+  const job = await stateManager.getJobState(jobId);
 
-  return { success: true, data: { jobId, status: "unknown" } };
+  if (!job) return { success: false, error: `Job ${jobId} not found` };
+  return { success: true, data: job };
 }
 
-/**
- * Get current configuration
- */
+// ── Config Handlers ────────────────────────────────────────────────────────────
+
 async function handleGetConfig(): Promise<MessageResponse> {
-  // TODO: Implement config retrieval from storage
   console.info("[Background] Getting config");
-
-  return { success: true, data: {} };
+  const config = await stateManager.getConfig();
+  return { success: true, data: config };
 }
 
-/**
- * Update configuration
- */
-async function handleUpdateConfig(payload: unknown): Promise<MessageResponse> {
-  // TODO: Implement config update
-  console.info("[Background] Updating config:", payload);
-
+async function handleUpdateConfig(payload: Partial<UserConfig>): Promise<MessageResponse> {
+  console.info("[Background] Updating config");
+  await stateManager.updateConfig(payload);
   return { success: true };
 }
 
-/**
- * Listen for extension installation
- */
-chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === "install") {
-    console.info("[Background] Extension installed");
-    // TODO: Initialize default settings
-  } else if (details.reason === "update") {
-    console.info("[Background] Extension updated from", details.previousVersion);
-    // TODO: Handle migration if needed
+async function handleGetAllJobs(): Promise<MessageResponse> {
+  console.info("[Background] Getting all jobs");
+  const jobs = await stateManager.getAllJobs();
+  return { success: true, data: { jobs } };
+}
+
+async function handleTestLLMConnection(): Promise<MessageResponse> {
+  console.info("[Background] Testing LLM connection");
+  try {
+    const config = await stateManager.getConfig();
+    const provider = config.llm.defaultProvider;
+    const providerConfig = config.llm.providers[provider];
+
+    if (!providerConfig) {
+      return { success: false, error: `No configuration for provider: ${provider}` };
+    }
+
+    // Try to reach the provider endpoint
+    const endpoint = providerConfig.endpoint;
+    if (endpoint) {
+      const response = await fetch(endpoint, { method: "GET", signal: AbortSignal.timeout(5000) });
+      return {
+        success: true,
+        data: {
+          provider,
+          // Fetch completed without throwing, so the server is reachable,
+          // even if the HTTP status is non-2xx (e.g., 404/405 on base URL).
+          reachable: true,
+          status: response.status,
+          httpOk: response.ok,
+        },
+      };
+    }
+
+    // Cloud providers (groq, deepseek) require an API key
+    if (providerConfig.apiKey) {
+      return {
+        success: true,
+        data: { provider, configured: true, hasApiKey: true },
+      };
+    }
+
+    return {
+      success: true,
+      data: { provider, configured: true, hasApiKey: false },
+    };
+  } catch (error) {
+    return { success: false, error: `LLM connection test failed: ${String(error)}` };
   }
+}
+
+// ── Port-based Connections ─────────────────────────────────────────────────────
+
+/**
+ * Handle long-lived port connections from content scripts and popup.
+ * Ports allow persistent bidirectional communication.
+ */
+const activePorts = new Map<string, chrome.runtime.Port>();
+
+chrome.runtime.onConnect.addListener((port) => {
+  const portId = `${port.name}-${Date.now()}`;
+  activePorts.set(portId, port);
+
+  console.info(`[Background] Port connected: ${port.name}`);
+
+  port.onMessage.addListener(async (message: Message) => {
+    await ensureInitialised();
+    try {
+      const response = await handleMessage(message);
+      port.postMessage(response);
+    } catch (error) {
+      port.postMessage({ success: false, error: String(error) });
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    activePorts.delete(portId);
+    console.info(`[Background] Port disconnected: ${port.name}`);
+  });
 });
 
 /**
- * Listen for side panel open action
+ * Broadcast a message to all connected ports matching a given name.
+ * Reserved for future use by job status updates and real-time notifications.
  */
-chrome.action.onClicked.addListener(async (tab) => {
-  if (tab.id) {
-    await chrome.sidePanel.open({ tabId: tab.id });
+function broadcastToContentScripts(message: unknown): void {
+  for (const [, p] of activePorts) {
+    if (p.name === "content-script") {
+      try {
+        p.postMessage(message);
+      } catch {
+        // Port may have been disconnected
+      }
+    }
+  }
+}
+// Exported for future use and testing
+void broadcastToContentScripts;
+
+// ── Interrupted Job Recovery ───────────────────────────────────────────────────
+
+/**
+ * On startup, check for jobs that were running when the service worker
+ * was terminated and resume them.
+ */
+async function resumeInterruptedJobs(): Promise<void> {
+  try {
+    const activeJob = await stateManager.getActiveJob();
+    if (activeJob && activeJob.status === "running") {
+      console.info("[Background] Resuming interrupted job:", activeJob.id);
+      await stateManager.resumeJob(activeJob.id);
+    }
+  } catch (error) {
+    console.error("[Background] Failed to resume interrupted jobs:", error);
+  }
+}
+
+// Kick off initialisation and recovery immediately
+initializeSystems().then(() => resumeInterruptedJobs());
+
+// ── Global Error Handling ──────────────────────────────────────────────────────
+
+self.addEventListener("error", (event) => {
+  console.error("[Background] Unhandled error:", event.error);
+  if (stateManager) {
+    stateManager
+      .saveLogs([
+        {
+          level: "error",
+          message: event.error?.message ?? "Unknown error",
+          timestamp: new Date().toISOString(),
+          context: { stack: event.error?.stack },
+        },
+      ])
+      .catch(() => {
+        /* best effort */
+      });
   }
 });
+
+// Re-export for testing
+export { initializeSystems, handleMessage, resumeInterruptedJobs, ensureInitialised };

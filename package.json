@@ -82,14 +82,42 @@
   "manifest": {
     "host_permissions": [
       "http://localhost:*/*",
-      "https://www.canva.com/*"
+      "https://www.canva.com/*",
+      "https://canva.com/*",
+      "https://*.canva.com/*",
+      "https://figma.com/*",
+      "https://*.figma.com/*",
+      "https://sheets.googleapis.com/*"
     ],
     "permissions": [
       "tabs",
       "storage",
       "activeTab",
       "scripting",
-      "sidePanel"
-    ]
+      "sidePanel",
+      "downloads",
+      "identity"
+    ],
+    "content_security_policy": {
+      "extension_pages": "script-src 'self'; object-src 'self'"
+    },
+    "web_accessible_resources": [
+      {
+        "resources": ["injected.js"],
+        "matches": [
+          "https://canva.com/*",
+          "https://*.canva.com/*",
+          "https://figma.com/*",
+          "https://*.figma.com/*"
+        ]
+      }
+    ],
+    "oauth2": {
+      "client_id": "$PLASMO_PUBLIC_GOOGLE_CLIENT_ID",
+      "scopes": [
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/drive.readonly"
+      ]
+    }
   }
 }

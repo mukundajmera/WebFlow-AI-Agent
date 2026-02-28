@@ -1,21 +1,63 @@
 /**
  * Universal Content Script Injector
- * Injected into all pages to enable browser automation
+ * Injected into all pages to enable browser automation.
+ *
+ * Implements the full set of actions from PROMPT 4.1:
+ *  - getDOMState, click, type, wait, scroll, navigate, hover,
+ *    evaluate, getComputedStyle, isVisible
+ * Also supports port-based persistent connections.
  */
 
 import type { ActionResult, BrowserAction, BoundingBox, WaitAction } from "~types";
 
-/**
- * Message types for content script communication
- */
+// ── Message Types ──────────────────────────────────────────────────────────────
+
 type ContentMessage =
   | { type: "EXECUTE_ACTION"; payload: BrowserAction }
   | { type: "GET_DOM_STATE" }
-  | { type: "TAKE_SCREENSHOT"; payload?: { selector?: string } };
+  | { type: "TAKE_SCREENSHOT"; payload?: { selector?: string } }
+  | { type: "EVALUATE"; payload: { script: string } }
+  | { type: "GET_COMPUTED_STYLE"; payload: { selector: string } }
+  | { type: "IS_VISIBLE"; payload: { selector: string } };
+
+// ── Port Connection ────────────────────────────────────────────────────────────
 
 /**
- * Handle messages from the background script
+ * Maintain a persistent port connection to the background script.
+ * Falls back to one-shot messages if the port disconnects.
+ *
+ * The port is established lazily (on first message that requires it)
+ * rather than at script load to avoid keeping the MV3 service worker
+ * alive unnecessarily and to reduce battery/CPU impact on pages that
+ * never perform automation.
  */
+let port: chrome.runtime.Port | null = null;
+
+function ensurePort(): chrome.runtime.Port | null {
+  if (port) return port;
+
+  try {
+    port = chrome.runtime.connect({ name: "content-script" });
+
+    port.onDisconnect.addListener(() => {
+      port = null;
+    });
+
+    port.onMessage.addListener((message: ContentMessage) => {
+      handleMessage(message).then((result) => {
+        port?.postMessage(result);
+      });
+    });
+  } catch {
+    // Port connection may fail if the service worker isn't ready yet
+    port = null;
+  }
+
+  return port;
+}
+
+// ── One-shot Message Handler ───────────────────────────────────────────────────
+
 chrome.runtime.onMessage.addListener(
   (message: ContentMessage, _sender, sendResponse: (response: ActionResult) => void) => {
     handleMessage(message)
@@ -29,14 +71,12 @@ chrome.runtime.onMessage.addListener(
         })
       );
 
-    // Return true to indicate we'll send a response asynchronously
-    return true;
+    return true; // async response
   }
 );
 
-/**
- * Process incoming messages
- */
+// ── Message Router ─────────────────────────────────────────────────────────────
+
 async function handleMessage(message: ContentMessage): Promise<ActionResult> {
   const startTime = Date.now();
 
@@ -46,11 +86,9 @@ async function handleMessage(message: ContentMessage): Promise<ActionResult> {
         return await executeAction(message.payload, startTime);
 
       case "GET_DOM_STATE":
-        return await getDOMState(startTime);
+        return getDOMState(startTime);
 
       case "TAKE_SCREENSHOT":
-        // Screenshots are captured via chrome.tabs.captureVisibleTab in background script
-        // Content script can only prepare the page or return element info
         return {
           success: true,
           data: {
@@ -61,10 +99,19 @@ async function handleMessage(message: ContentMessage): Promise<ActionResult> {
           duration: Date.now() - startTime,
         };
 
+      case "EVALUATE":
+        return executeEvaluate(message.payload.script, startTime);
+
+      case "GET_COMPUTED_STYLE":
+        return executeGetComputedStyle(message.payload.selector, startTime);
+
+      case "IS_VISIBLE":
+        return executeIsVisible(message.payload.selector, startTime);
+
       default:
         return {
           success: false,
-          error: `Unknown message type`,
+          error: "Unknown message type",
           timestamp: new Date().toISOString(),
           duration: Date.now() - startTime,
         };
@@ -79,98 +126,74 @@ async function handleMessage(message: ContentMessage): Promise<ActionResult> {
   }
 }
 
-/**
- * Execute a browser action on the page
- */
+// ── Action Dispatcher ──────────────────────────────────────────────────────────
+
 async function executeAction(action: BrowserAction, startTime: number): Promise<ActionResult> {
   switch (action.type) {
     case "click":
-      return await executeClick(action, startTime);
-
+      return executeClick(action, startTime);
     case "type":
-      return await executeType(action, startTime);
-
+      return executeType(action, startTime);
     case "wait":
-      return await executeWait(action, startTime);
-
+      return executeWait(action, startTime);
+    case "scroll":
+      return executeScroll(action, startTime);
+    case "navigate":
+      return executeNavigate(action, startTime);
+    case "hover":
+      return executeHover(action, startTime);
+    case "evaluate":
+      return executeEvaluate(String(action.value ?? ""), startTime);
     default:
-      return {
-        success: false,
-        error: `Unsupported action type: ${action.type}`,
-        timestamp: new Date().toISOString(),
-        duration: Date.now() - startTime,
-      };
+      return fail(`Unsupported action type: ${action.type}`, startTime);
   }
 }
 
-/**
- * Execute a click action
- */
+// ── Click ──────────────────────────────────────────────────────────────────────
+
 async function executeClick(action: BrowserAction, startTime: number): Promise<ActionResult> {
   try {
     const element = findElement(action.target);
     if (!element) {
-      return {
-        success: false,
-        error: "Element not found",
-        timestamp: new Date().toISOString(),
-        duration: Date.now() - startTime,
-      };
+      return fail("Element not found", startTime);
     }
 
-    // Scroll into view if needed
     if (action.options?.scrollIntoView !== false) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       await sleep(100);
     }
 
-    // Click the element
     (element as HTMLElement).click();
 
-    // Wait after action if specified
     if (action.options?.waitAfter) {
       await sleep(action.options.waitAfter);
     }
 
-    return {
-      success: true,
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return ok(undefined, startTime);
   } catch (error) {
-    return {
-      success: false,
-      error: String(error),
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return fail(String(error), startTime);
   }
 }
 
-/**
- * Execute a type action
- */
+// ── Type ───────────────────────────────────────────────────────────────────────
+
 async function executeType(action: BrowserAction, startTime: number): Promise<ActionResult> {
   try {
     const element = findElement(action.target);
-    if (!element || !(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
-      return {
-        success: false,
-        error: "Input element not found",
-        timestamp: new Date().toISOString(),
-        duration: Date.now() - startTime,
-      };
+    if (
+      !element ||
+      !(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)
+    ) {
+      return fail("Input element not found", startTime);
     }
 
-    // Handle both `value` (from workflows) and `text` (from TypeAction interface)
     type TypeActionPayload = { clearFirst?: boolean; value?: unknown; text?: string };
     const typeAction = action as TypeActionPayload;
-    
+
     if (typeAction.clearFirst) {
       element.value = "";
     }
 
-    // Determine the text to type (prefer `value`, fall back to `text` for compatibility)
     let textToType = "";
     if (typeof typeAction.value === "string") {
       textToType = typeAction.value;
@@ -178,50 +201,31 @@ async function executeType(action: BrowserAction, startTime: number): Promise<Ac
       textToType = typeAction.text;
     }
 
-    // Type the text
     element.focus();
     element.value = textToType;
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
 
-    // Wait after action if specified
     if (action.options?.waitAfter) {
       await sleep(action.options.waitAfter);
     }
 
-    return {
-      success: true,
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return ok(undefined, startTime);
   } catch (error) {
-    return {
-      success: false,
-      error: String(error),
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return fail(String(error), startTime);
   }
 }
 
-/**
- * Execute a wait action
- */
+// ── Wait ───────────────────────────────────────────────────────────────────────
+
 async function executeWait(action: BrowserAction, startTime: number): Promise<ActionResult> {
-  // Cast to WaitAction which has timeout at action level
   const waitAction = action as WaitAction;
   const condition = waitAction.condition;
 
   if (!condition) {
-    return {
-      success: false,
-      error: "Wait condition not specified",
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return fail("Wait condition not specified", startTime);
   }
 
-  // WaitAction defines timeout at action level, fallback to options.timeout
   const timeout = waitAction.timeout || action.options?.timeout || 30000;
 
   try {
@@ -234,34 +238,210 @@ async function executeWait(action: BrowserAction, startTime: number): Promise<Ac
         await waitForElement(condition.selector || "", timeout);
         break;
 
+      case "element_hidden":
+        await waitForElementHidden(condition.selector || "", timeout);
+        break;
+
+      case "text_visible":
+        await waitForText(condition.text || "", timeout);
+        break;
+
+      case "url_match":
+        await waitForUrl(condition.pattern || "", timeout);
+        break;
+
       default:
-        return {
-          success: false,
-          error: `Unknown wait condition: ${condition.type}`,
-          timestamp: new Date().toISOString(),
-          duration: Date.now() - startTime,
-        };
+        return fail(`Unknown wait condition: ${condition.type}`, startTime);
     }
 
-    return {
-      success: true,
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return ok(undefined, startTime);
   } catch (error) {
-    return {
-      success: false,
-      error: String(error),
-      timestamp: new Date().toISOString(),
-      duration: Date.now() - startTime,
-    };
+    return fail(String(error), startTime);
   }
 }
 
+// ── Scroll ─────────────────────────────────────────────────────────────────────
+
+async function executeScroll(action: BrowserAction, startTime: number): Promise<ActionResult> {
+  try {
+    type ScrollPayload = { direction?: string; amount?: number; toElement?: boolean };
+    const scrollAction = action as ScrollPayload;
+
+    // Scroll to a specific element
+    if (scrollAction.toElement && action.target) {
+      const element = findElement(action.target);
+      if (!element) return fail("Scroll target element not found", startTime);
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      await sleep(300);
+      return ok(undefined, startTime);
+    }
+
+    // Directional scroll
+    const amount = scrollAction.amount ?? 300;
+    const scrollMap: Record<string, [number, number]> = {
+      up: [0, -amount],
+      down: [0, amount],
+      left: [-amount, 0],
+      right: [amount, 0],
+    };
+    const [x, y] = scrollMap[scrollAction.direction ?? "down"] ?? [0, amount];
+
+    window.scrollBy({ left: x, top: y, behavior: "smooth" });
+    await sleep(300);
+
+    return ok(undefined, startTime);
+  } catch (error) {
+    return fail(String(error), startTime);
+  }
+}
+
+// ── Navigate ───────────────────────────────────────────────────────────────────
+
+function executeNavigate(action: BrowserAction, startTime: number): ActionResult {
+  try {
+    type NavPayload = { url?: string };
+    const url =
+      (action as NavPayload).url ?? (typeof action.value === "string" ? action.value : "");
+
+    if (!url) return fail("Navigation URL not specified", startTime);
+
+    window.location.href = url;
+    return ok({ url }, startTime);
+  } catch (error) {
+    return fail(String(error), startTime);
+  }
+}
+
+// ── Hover ──────────────────────────────────────────────────────────────────────
+
+async function executeHover(action: BrowserAction, startTime: number): Promise<ActionResult> {
+  try {
+    const element = findElement(action.target);
+    if (!element) return fail("Hover target element not found", startTime);
+
+    if (action.options?.scrollIntoView !== false) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      await sleep(100);
+    }
+
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    element.dispatchEvent(
+      new MouseEvent("mouseenter", { bubbles: true, clientX: x, clientY: y })
+    );
+    element.dispatchEvent(
+      new MouseEvent("mouseover", { bubbles: true, clientX: x, clientY: y })
+    );
+
+    if (action.options?.waitAfter) {
+      await sleep(action.options.waitAfter);
+    }
+
+    return ok(undefined, startTime);
+  } catch (error) {
+    return fail(String(error), startTime);
+  }
+}
+
+// ── Evaluate ───────────────────────────────────────────────────────────────────
+
 /**
- * Get current DOM state
+ * Execute a user-supplied script expression in the page context.
+ *
+ * **Security note:** This uses the `Function` constructor and the
+ * blocked-pattern list below is a best-effort defence-in-depth measure,
+ * *not* a sandbox.  Bracket-notation access (e.g. `window["fetch"](...)`)
+ * can bypass the regex checks.  Callers must restrict who can supply
+ * `script` values (e.g. only the LLM orchestrator) and never expose this
+ * to untrusted user input.
  */
-async function getDOMState(startTime: number): Promise<ActionResult> {
+function executeEvaluate(script: string, startTime: number): ActionResult {
+  if (!script) return fail("Script not provided", startTime);
+
+  // Best-effort blocklist — not a security boundary.
+  const blockedPatterns = [
+    /\bfetch\b/,
+    /\bXMLHttpRequest\b/,
+    /\beval\b/,
+    /\bimport\b/,
+    /\bdocument\.cookie\b/,
+    /\blocalStorage\b/,
+    /\bsessionStorage\b/,
+    /\bwindow\.open\b/,
+    /\bpostMessage\b/,
+  ];
+
+  for (const pattern of blockedPatterns) {
+    if (pattern.test(script)) {
+      return fail(`Script contains blocked pattern: ${pattern.source}`, startTime);
+    }
+  }
+
+  try {
+    // Use Function constructor to evaluate in the page context
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(script);
+    const result = fn();
+    return ok({ result: result !== undefined ? String(result) : undefined }, startTime);
+  } catch (error) {
+    return fail(String(error), startTime);
+  }
+}
+
+// ── getComputedStyle ───────────────────────────────────────────────────────────
+
+function executeGetComputedStyle(selector: string, startTime: number): ActionResult {
+  if (!selector) return fail("Selector not provided", startTime);
+
+  const element = document.querySelector(selector);
+  if (!element) return fail(`Element not found: ${selector}`, startTime);
+
+  const style = window.getComputedStyle(element);
+
+  // Return commonly needed properties
+  const properties: Record<string, string> = {};
+  const keys = [
+    "display",
+    "visibility",
+    "opacity",
+    "color",
+    "backgroundColor",
+    "fontSize",
+    "fontFamily",
+    "fontWeight",
+    "width",
+    "height",
+    "position",
+    "zIndex",
+    "overflow",
+    "margin",
+    "padding",
+    "border",
+  ];
+  for (const key of keys) {
+    properties[key] = style.getPropertyValue(key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`));
+  }
+
+  return ok(properties, startTime);
+}
+
+// ── isVisible ──────────────────────────────────────────────────────────────────
+
+function executeIsVisible(selector: string, startTime: number): ActionResult {
+  if (!selector) return fail("Selector not provided", startTime);
+
+  const element = document.querySelector(selector);
+  if (!element) return ok({ visible: false, reason: "Element not found" }, startTime);
+
+  const visible = isElementVisible(element);
+  return ok({ visible }, startTime);
+}
+
+// ── DOM State Extraction ───────────────────────────────────────────────────────
+
+function getDOMState(startTime: number): ActionResult {
   const state = {
     url: window.location.href,
     title: document.title,
@@ -272,18 +452,14 @@ async function getDOMState(startTime: number): Promise<ActionResult> {
     timestamp: new Date().toISOString(),
   };
 
-  return {
-    success: true,
-    data: state,
-    timestamp: new Date().toISOString(),
-    duration: Date.now() - startTime,
-  };
+  return ok(state, startTime);
 }
 
-/**
- * Find an element based on selector
- */
-function findElement(target?: { type: string; selector?: string; x?: number; y?: number }): Element | null {
+// ── Element Finding ────────────────────────────────────────────────────────────
+
+function findElement(
+  target?: { type: string; selector?: string; x?: number; y?: number }
+): Element | null {
   if (!target) return null;
 
   switch (target.type) {
@@ -298,9 +474,8 @@ function findElement(target?: { type: string; selector?: string; x?: number; y?:
   }
 }
 
-/**
- * Get visible interactive elements with all required fields
- */
+// ── Visible Elements ───────────────────────────────────────────────────────────
+
 function getVisibleElements(): Array<{
   tagName: string;
   selector: string;
@@ -324,7 +499,6 @@ function getVisibleElements(): Array<{
   interactiveElements.forEach((el, index) => {
     const rect = el.getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) {
-      // Collect attributes
       const attributes: Record<string, string> = {};
       for (const attr of el.attributes) {
         attributes[attr.name] = attr.value;
@@ -334,24 +508,18 @@ function getVisibleElements(): Array<{
         tagName: el.tagName.toLowerCase(),
         selector: generateSelector(el, index),
         text: (el.textContent || "").trim().substring(0, 100),
-        bbox: {
-          x: rect.x,
-          y: rect.y,
-          width: rect.width,
-          height: rect.height,
-        },
+        bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
         attributes,
         isInteractive: true,
       });
     }
   });
 
-  return elements.slice(0, 100); // Limit to 100 elements
+  return elements.slice(0, 100);
 }
 
-/**
- * Get form elements with all required fields
- */
+// ── Form Extraction ────────────────────────────────────────────────────────────
+
 function getForms(): Array<{
   selector: string;
   inputs: Array<{ name: string; type: string; value: string; required: boolean }>;
@@ -375,7 +543,6 @@ function getForms(): Array<{
       });
     });
 
-    // Find submit button
     const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
     const submitSelector = submitBtn ? generateSelector(submitBtn, 0) : undefined;
 
@@ -389,9 +556,8 @@ function getForms(): Array<{
   return forms;
 }
 
-/**
- * Get canvas elements with all required fields
- */
+// ── Canvas Element Extraction ──────────────────────────────────────────────────
+
 function getCanvasElements(): Array<{
   selector: string;
   width: number;
@@ -406,7 +572,6 @@ function getCanvasElements(): Array<{
   }> = [];
 
   document.querySelectorAll("canvas").forEach((canvas, index) => {
-    // Try to detect the rendering context
     let renderingContext: "2d" | "webgl" | "webgl2" | "unknown" = "unknown";
     try {
       if (canvas.getContext("2d")) {
@@ -417,7 +582,6 @@ function getCanvasElements(): Array<{
         renderingContext = "webgl";
       }
     } catch {
-      // Context already acquired with different type
       renderingContext = "unknown";
     }
 
@@ -432,9 +596,8 @@ function getCanvasElements(): Array<{
   return canvases;
 }
 
-/**
- * Get iframe information with all required fields
- */
+// ── IFrame Extraction ──────────────────────────────────────────────────────────
+
 function getIframes(): Array<{ selector: string; src: string; sandboxed: boolean }> {
   const iframes: Array<{ selector: string; src: string; sandboxed: boolean }> = [];
 
@@ -449,9 +612,8 @@ function getIframes(): Array<{ selector: string; src: string; sandboxed: boolean
   return iframes;
 }
 
-/**
- * Generate a CSS selector for an element
- */
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
 function generateSelector(el: Element, index: number): string {
   if (el.id) return `#${el.id}`;
 
@@ -465,27 +627,79 @@ function generateSelector(el: Element, index: number): string {
   return `${el.tagName.toLowerCase()}:nth-of-type(${index + 1})`;
 }
 
-/**
- * Wait for an element to appear
- */
+function isElementVisible(element: Element): boolean {
+  const rect = element.getBoundingClientRect();
+  const style = window.getComputedStyle(element);
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    style.display !== "none" &&
+    style.visibility !== "hidden" &&
+    style.opacity !== "0"
+  );
+}
+
 async function waitForElement(selector: string, timeout: number): Promise<Element> {
   const startTime = Date.now();
-
   while (Date.now() - startTime < timeout) {
     const element = document.querySelector(selector);
     if (element) return element;
     await sleep(100);
   }
-
   throw new Error(`Element ${selector} not found within ${timeout}ms`);
 }
 
-/**
- * Sleep utility
- */
+async function waitForElementHidden(selector: string, timeout: number): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    const element = document.querySelector(selector);
+    if (!element || !isElementVisible(element)) return;
+    await sleep(100);
+  }
+  throw new Error(`Element ${selector} still visible after ${timeout}ms`);
+}
+
+async function waitForText(text: string, timeout: number): Promise<void> {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeout) {
+    if (document.body.textContent?.includes(text)) return;
+    await sleep(100);
+  }
+  throw new Error(`Text "${text}" not found within ${timeout}ms`);
+}
+
+async function waitForUrl(pattern: string, timeout: number): Promise<void> {
+  const startTime = Date.now();
+  const regex = new RegExp(pattern);
+  while (Date.now() - startTime < timeout) {
+    if (regex.test(window.location.href)) return;
+    await sleep(100);
+  }
+  throw new Error(`URL did not match pattern "${pattern}" within ${timeout}ms`);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Log when script loads
+function ok(data: unknown, startTime: number): ActionResult {
+  return {
+    success: true,
+    data,
+    timestamp: new Date().toISOString(),
+    duration: Date.now() - startTime,
+  };
+}
+
+function fail(error: string, startTime: number): ActionResult {
+  return {
+    success: false,
+    error,
+    timestamp: new Date().toISOString(),
+    duration: Date.now() - startTime,
+  };
+}
+
+// ── Initialisation ─────────────────────────────────────────────────────────────
+
 console.info("[BrowserAI Craft] Content script loaded");
