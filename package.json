@@ -111,6 +111,13 @@
           "https://*.figma.com/*"
         ]
       }
-    ]
+    ],
+    "oauth2": {
+      "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+      "scopes": [
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        "https://www.googleapis.com/auth/drive.readonly"
+      ]
+    }
   }
 }

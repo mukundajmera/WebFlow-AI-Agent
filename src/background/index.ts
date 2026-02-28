@@ -110,11 +110,17 @@ async function handleMessage(message: Message): Promise<MessageResponse> {
     case "GET_JOB_STATUS":
       return handleGetJobStatus(message.payload as { jobId: string });
 
+    case "GET_ALL_JOBS":
+      return handleGetAllJobs();
+
     case "GET_CONFIG":
       return handleGetConfig();
 
     case "UPDATE_CONFIG":
       return handleUpdateConfig(message.payload as Partial<UserConfig>);
+
+    case "TEST_LLM_CONNECTION":
+      return handleTestLLMConnection();
 
     default:
       return { success: false, error: `Unknown message type: ${message.type}` };
@@ -212,6 +218,101 @@ async function handleUpdateConfig(payload: Partial<UserConfig>): Promise<Message
   await stateManager.updateConfig(payload);
   return { success: true };
 }
+
+async function handleGetAllJobs(): Promise<MessageResponse> {
+  console.info("[Background] Getting all jobs");
+  const jobs = await stateManager.getAllJobs();
+  return { success: true, data: { jobs } };
+}
+
+async function handleTestLLMConnection(): Promise<MessageResponse> {
+  console.info("[Background] Testing LLM connection");
+  try {
+    const config = await stateManager.getConfig();
+    const provider = config.llm.defaultProvider;
+    const providerConfig = config.llm.providers[provider];
+
+    if (!providerConfig) {
+      return { success: false, error: `No configuration for provider: ${provider}` };
+    }
+
+    // Try to reach the provider endpoint
+    const endpoint = providerConfig.endpoint;
+    if (endpoint) {
+      const response = await fetch(endpoint, { method: "GET", signal: AbortSignal.timeout(5000) });
+      return {
+        success: true,
+        data: {
+          provider,
+          reachable: response.ok,
+          status: response.status,
+        },
+      };
+    }
+
+    // Cloud providers (groq, deepseek) require an API key
+    if (providerConfig.apiKey) {
+      return {
+        success: true,
+        data: { provider, configured: true, hasApiKey: true },
+      };
+    }
+
+    return {
+      success: true,
+      data: { provider, configured: true, hasApiKey: false },
+    };
+  } catch (error) {
+    return { success: false, error: `LLM connection test failed: ${String(error)}` };
+  }
+}
+
+// ── Port-based Connections ─────────────────────────────────────────────────────
+
+/**
+ * Handle long-lived port connections from content scripts and popup.
+ * Ports allow persistent bidirectional communication.
+ */
+const activePorts = new Map<string, chrome.runtime.Port>();
+
+chrome.runtime.onConnect.addListener((port) => {
+  const portId = `${port.name}-${Date.now()}`;
+  activePorts.set(portId, port);
+
+  console.info(`[Background] Port connected: ${port.name}`);
+
+  port.onMessage.addListener(async (message: Message) => {
+    await ensureInitialised();
+    try {
+      const response = await handleMessage(message);
+      port.postMessage(response);
+    } catch (error) {
+      port.postMessage({ success: false, error: String(error) });
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    activePorts.delete(portId);
+    console.info(`[Background] Port disconnected: ${port.name}`);
+  });
+});
+
+/**
+ * Broadcast a message to all connected ports matching a given name.
+ */
+function broadcastToContentScripts(message: unknown): void {
+  for (const [, port] of activePorts) {
+    if (port.name === "content-script") {
+      try {
+        port.postMessage(message);
+      } catch {
+        // Port may have been disconnected
+      }
+    }
+  }
+}
+// Keep reference accessible for future use
+void broadcastToContentScripts;
 
 // ── Interrupted Job Recovery ───────────────────────────────────────────────────
 

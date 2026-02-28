@@ -1,5 +1,14 @@
 import { vi } from "vitest";
 
+// Mock port object for chrome.runtime.connect
+const mockPort = {
+  name: "content-script",
+  postMessage: vi.fn(),
+  onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+  onDisconnect: { addListener: vi.fn(), removeListener: vi.fn() },
+  disconnect: vi.fn(),
+};
+
 // Mock Chrome APIs
 const mockChrome = {
   storage: {
@@ -24,6 +33,10 @@ const mockChrome = {
     onInstalled: {
       addListener: vi.fn(),
     },
+    onConnect: {
+      addListener: vi.fn(),
+    },
+    connect: vi.fn().mockReturnValue(mockPort),
     getURL: vi.fn((path: string) => `chrome-extension://mock-id/${path}`),
     id: "mock-extension-id",
     lastError: null as chrome.runtime.LastError | null,
