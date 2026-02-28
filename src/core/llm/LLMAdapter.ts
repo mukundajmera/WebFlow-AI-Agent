@@ -247,8 +247,6 @@ export class LLMAdapter {
     const startIdx = text.search(/[\[{]/);
     if (startIdx === -1) return null;
 
-    const open = text[startIdx];
-    const close = open === "{" ? "}" : "]";
     let depth = 0;
     let inString = false;
     let escape = false;
@@ -270,8 +268,8 @@ export class LLMAdapter {
       }
       if (inString) continue;
 
-      if (ch === open || ch === (open === "{" ? "[" : "{")) depth++;
-      if (ch === close || ch === (close === "}" ? "]" : "}")) depth--;
+      if (ch === "{" || ch === "[") depth++;
+      if (ch === "}" || ch === "]") depth--;
 
       if (depth === 0) {
         return text.slice(startIdx, i + 1);
