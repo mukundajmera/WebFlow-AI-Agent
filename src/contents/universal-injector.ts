@@ -343,6 +343,26 @@ async function executeHover(action: BrowserAction, startTime: number): Promise<A
 function executeEvaluate(script: string, startTime: number): ActionResult {
   if (!script) return fail("Script not provided", startTime);
 
+  // Only allow evaluation of simple expressions that return values.
+  // Block dangerous patterns to reduce security risk.
+  const blockedPatterns = [
+    /\bfetch\b/,
+    /\bXMLHttpRequest\b/,
+    /\beval\b/,
+    /\bimport\b/,
+    /\bdocument\.cookie\b/,
+    /\blocalStorage\b/,
+    /\bsessionStorage\b/,
+    /\bwindow\.open\b/,
+    /\bpostMessage\b/,
+  ];
+
+  for (const pattern of blockedPatterns) {
+    if (pattern.test(script)) {
+      return fail(`Script contains blocked pattern: ${pattern.source}`, startTime);
+    }
+  }
+
   try {
     // Use Function constructor to evaluate in the page context
     // eslint-disable-next-line no-new-func

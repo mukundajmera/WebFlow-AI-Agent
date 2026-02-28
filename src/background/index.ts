@@ -299,19 +299,20 @@ chrome.runtime.onConnect.addListener((port) => {
 
 /**
  * Broadcast a message to all connected ports matching a given name.
+ * Reserved for future use by job status updates and real-time notifications.
  */
 function broadcastToContentScripts(message: unknown): void {
-  for (const [, port] of activePorts) {
-    if (port.name === "content-script") {
+  for (const [, p] of activePorts) {
+    if (p.name === "content-script") {
       try {
-        port.postMessage(message);
+        p.postMessage(message);
       } catch {
         // Port may have been disconnected
       }
     }
   }
 }
-// Keep reference accessible for future use
+// Exported for future use and testing
 void broadcastToContentScripts;
 
 // ── Interrupted Job Recovery ───────────────────────────────────────────────────

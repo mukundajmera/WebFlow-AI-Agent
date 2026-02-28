@@ -191,7 +191,7 @@ function Popup() {
 
       {/* Footer */}
       <p style={{ textAlign: "center", fontSize: 11, color: "#9ca3af", marginTop: 10, marginBottom: 0 }}>
-        {jobs.total} total jobs · v0.1.0
+        {jobs.total} total jobs
       </p>
     </div>
   );
