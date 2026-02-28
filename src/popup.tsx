@@ -144,7 +144,7 @@ function Popup() {
       </div>
 
       {/* Quick Start */}
-      <label htmlFor="quick-start-prompt" className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>
+      <label htmlFor="quick-start-prompt" className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clipPath: "inset(50%)" }}>
         Task prompt
       </label>
       <textarea
