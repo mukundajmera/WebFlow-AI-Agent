@@ -78,6 +78,8 @@ export class GoogleSheetsConnector {
         identity.getAuthToken({ interactive: true }, (tok: string) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
+          } else if (!tok) {
+            reject(new Error("Authentication cancelled or token unavailable"));
           } else {
             resolve(tok);
           }

@@ -19,6 +19,21 @@ import { autoUpdater } from "electron-updater";
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
+/**
+ * Resolve a path under the `assets/` directory.
+ *
+ * In development `__dirname` points to the source/dist folder, so assets
+ * live alongside it.  In a packaged build `process.resourcesPath` points
+ * to the `resources/` directory where `electron-builder` copies extra
+ * files, so we check that location first.
+ */
+function resolveAsset(...segments: string[]): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "assets", ...segments);
+  }
+  return path.join(__dirname, "assets", ...segments);
+}
+
 const mcpServers: Record<string, ChildProcess | null> = {
   lmstudio: null,
   ollama: null,
@@ -59,12 +74,12 @@ async function createMainWindow(): Promise<void> {
     minWidth: 1000,
     minHeight: 600,
     title: "BrowserAI Craft",
-    icon: path.join(__dirname, "assets", "icon.png"),
+    icon: resolveAsset("icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webviewTag: true,
+      webviewTag: false,
     },
   });
 
@@ -83,7 +98,7 @@ async function createMainWindow(): Promise<void> {
 // ── System Tray ────────────────────────────────────────────────────────────────
 
 function createSystemTray(): void {
-  const iconPath = path.join(__dirname, "assets", "tray-icon.png");
+  const iconPath = resolveAsset("tray-icon.png");
   if (!fs.existsSync(iconPath)) return; // Gracefully skip if no icon available
 
   tray = new Tray(iconPath);

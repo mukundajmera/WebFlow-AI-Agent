@@ -329,11 +329,12 @@ describe("Background — Port connections", () => {
 // ===========================================================================
 
 describe("Universal Content Script — port connection", () => {
-  it("calls chrome.runtime.connect on import", async () => {
+  it("does not eagerly call chrome.runtime.connect on import (lazy connection)", async () => {
     vi.resetModules();
     await import("../../src/contents/universal-injector");
 
-    expect(chrome.runtime.connect).toHaveBeenCalledWith({ name: "content-script" });
+    // Port is now established lazily via ensurePort(), not on import
+    expect(chrome.runtime.connect).not.toHaveBeenCalled();
   });
 });
 

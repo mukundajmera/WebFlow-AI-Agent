@@ -119,6 +119,8 @@ function Popup() {
 
       {/* Connection Status */}
       <div
+        role="status"
+        aria-label={`LLM connection: ${status?.connected ? "connected" : "disconnected"}`}
         style={{
           display: "flex",
           alignItems: "center",
@@ -130,14 +132,24 @@ function Popup() {
           fontSize: 13,
         }}
       >
-        <span style={{ fontSize: 10, color: status?.connected ? "#10b981" : "#ef4444" }}>●</span>
+        <span
+          aria-hidden="true"
+          style={{ fontSize: 10, color: status?.connected ? "#10b981" : "#ef4444" }}
+        >
+          ●
+        </span>
         <span>
           {status ? `${status.provider}: ${status.detail}` : "Checking connection…"}
         </span>
       </div>
 
       {/* Quick Start */}
+      <label htmlFor="quick-start-prompt" className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>
+        Task prompt
+      </label>
       <textarea
+        id="quick-start-prompt"
+        aria-label="Quick start: describe your task"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         placeholder="Quick start: describe your task…"
@@ -155,6 +167,7 @@ function Popup() {
       />
 
       <button
+        aria-label={submitting ? "Starting job" : "Start job"}
         onClick={handleQuickStart}
         disabled={submitting || !prompt.trim()}
         style={{
@@ -175,6 +188,7 @@ function Popup() {
 
       {/* Open Side Panel */}
       <button
+        aria-label="Open full side panel"
         onClick={openSidePanel}
         style={{
           width: "100%",

@@ -127,7 +127,7 @@ export class DataValidator {
    *
    * - Trims whitespace from all string values
    * - Removes completely empty rows
-   * - Fixes common encoding artefacts (e.g. `'` → `'`)
+   * - Fixes common encoding artefacts (e.g. `\u2019` → `'`, `\u201C`/`\u201D` → `"`)
    * - Normalises line breaks inside values
    */
   sanitizeData(rows: DataRow[]): DataRow[] {
@@ -169,7 +169,7 @@ export class DataValidator {
     const duplicates: number[] = [];
 
     rows.forEach((row, idx) => {
-      const sig = keyFields.map((f) => String(row[f] ?? "")).join("|");
+      const sig = JSON.stringify(keyFields.map((f) => String(row[f] ?? "")));
       if (seen.has(sig)) {
         duplicates.push(idx);
       } else {

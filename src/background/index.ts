@@ -41,7 +41,10 @@ async function initializeSystems(): Promise<void> {
     systemsInitialised = true;
     console.info("[Background] Systems initialised");
   } catch (error) {
+    // Log and propagate the error so callers do not proceed with undefined systems.
+    systemsInitialised = false;
     console.error("[Background] Failed to initialise systems:", error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -144,8 +147,8 @@ async function handleStartJob(payload: { prompt: string }): Promise<MessageRespo
     prompt,
     config: {
       llmProvider: config.llm.providers[config.llm.defaultProvider],
-      templateMode: "same",
-      exportFormat: "png",
+      templateMode: config.defaults?.templateMode ?? "same",
+      exportFormat: config.defaults?.exportFormat ?? "png",
     },
     tasks: [],
     status: "queued",
@@ -244,8 +247,11 @@ async function handleTestLLMConnection(): Promise<MessageResponse> {
         success: true,
         data: {
           provider,
-          reachable: response.ok,
+          // Fetch completed without throwing, so the server is reachable,
+          // even if the HTTP status is non-2xx (e.g., 404/405 on base URL).
+          reachable: true,
           status: response.status,
+          httpOk: response.ok,
         },
       };
     }

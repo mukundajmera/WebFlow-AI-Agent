@@ -25,10 +25,17 @@ type ContentMessage =
 /**
  * Maintain a persistent port connection to the background script.
  * Falls back to one-shot messages if the port disconnects.
+ *
+ * The port is established lazily (on first message that requires it)
+ * rather than at script load to avoid keeping the MV3 service worker
+ * alive unnecessarily and to reduce battery/CPU impact on pages that
+ * never perform automation.
  */
 let port: chrome.runtime.Port | null = null;
 
-function connectPort(): void {
+function ensurePort(): chrome.runtime.Port | null {
+  if (port) return port;
+
   try {
     port = chrome.runtime.connect({ name: "content-script" });
 
@@ -45,9 +52,9 @@ function connectPort(): void {
     // Port connection may fail if the service worker isn't ready yet
     port = null;
   }
-}
 
-connectPort();
+  return port;
+}
 
 // ── One-shot Message Handler ───────────────────────────────────────────────────
 
@@ -340,11 +347,20 @@ async function executeHover(action: BrowserAction, startTime: number): Promise<A
 
 // ── Evaluate ───────────────────────────────────────────────────────────────────
 
+/**
+ * Execute a user-supplied script expression in the page context.
+ *
+ * **Security note:** This uses the `Function` constructor and the
+ * blocked-pattern list below is a best-effort defence-in-depth measure,
+ * *not* a sandbox.  Bracket-notation access (e.g. `window["fetch"](...)`)
+ * can bypass the regex checks.  Callers must restrict who can supply
+ * `script` values (e.g. only the LLM orchestrator) and never expose this
+ * to untrusted user input.
+ */
 function executeEvaluate(script: string, startTime: number): ActionResult {
   if (!script) return fail("Script not provided", startTime);
 
-  // Only allow evaluation of simple expressions that return values.
-  // Block dangerous patterns to reduce security risk.
+  // Best-effort blocklist — not a security boundary.
   const blockedPatterns = [
     /\bfetch\b/,
     /\bXMLHttpRequest\b/,

@@ -31,6 +31,14 @@ describe("Desktop App — file structure", () => {
   it("tsconfig.json exists", () => {
     expect(existsSync(path.join(DESKTOP_DIR, "tsconfig.json"))).toBe(true);
   });
+
+  it("assets directory exists", () => {
+    expect(existsSync(path.join(DESKTOP_DIR, "assets"))).toBe(true);
+  });
+
+  it("extension directory exists", () => {
+    expect(existsSync(path.join(DESKTOP_DIR, "extension"))).toBe(true);
+  });
 });
 
 // ===========================================================================
@@ -98,6 +106,15 @@ describe("Desktop App — main.ts patterns", () => {
 
   it("creates a main window with contextIsolation", () => {
     expect(mainSrc).toContain("contextIsolation: true");
+  });
+
+  it("disables webviewTag for security", () => {
+    expect(mainSrc).toContain("webviewTag: false");
+  });
+
+  it("resolves asset paths via resolveAsset helper", () => {
+    expect(mainSrc).toContain("resolveAsset");
+    expect(mainSrc).toContain("process.resourcesPath");
   });
 
   it("disables nodeIntegration", () => {
