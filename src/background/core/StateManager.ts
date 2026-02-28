@@ -3,46 +3,46 @@
  * Uses Chrome Storage API for persistence.
  */
 
-import type { Job, JobStatus, TaskStatus } from '~types/orchestration';
-import type { LogLevel, LogEntry } from '~types/common';
-import type { UserConfig } from '~types/config';
-import { DEFAULT_CONFIG } from '~types/config';
+import type { Job, JobStatus, TaskStatus } from "~types/orchestration";
+import type { LogLevel, LogEntry } from "~types/common";
+import type { UserConfig } from "~types/config";
+import { DEFAULT_CONFIG } from "~types/config";
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  JOBS: 'browserai_jobs',
-  ACTIVE_JOB: 'browserai_active_job',
-  CONFIG: 'browserai_config',
-  LOGS: 'browserai_logs',
-  CACHE: 'browserai_cache',
-  JOBS_INDEX: 'browserai_jobs_index',
-  STORAGE_VERSION: 'browserai_storage_version',
+  JOBS: "browserai_jobs",
+  ACTIVE_JOB: "browserai_active_job",
+  CONFIG: "browserai_config",
+  LOGS: "browserai_logs",
+  CACHE: "browserai_cache",
+  JOBS_INDEX: "browserai_jobs_index",
+  STORAGE_VERSION: "browserai_storage_version",
 };
 
-const CURRENT_STORAGE_VERSION = '1.0.0';
+const CURRENT_STORAGE_VERSION = "1.0.0";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_LOG_ENTRIES = 1000;
 const STORAGE_LIMIT = 10 * 1024 * 1024; // 10 MB
-const ENCRYPT_PREFIX = 'enc:';
+const ENCRYPT_PREFIX = "enc:";
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface StateChangeEvent {
   type:
-    | 'job_updated'
-    | 'job_created'
-    | 'job_deleted'
-    | 'task_updated'
-    | 'config_updated'
-    | 'active_job_changed'
-    | 'job_paused'
-    | 'job_resumed'
-    | 'job_cancelled'
-    | 'logs_cleared'
-    | 'cache_cleared';
+    | "job_updated"
+    | "job_created"
+    | "job_deleted"
+    | "task_updated"
+    | "config_updated"
+    | "active_job_changed"
+    | "job_paused"
+    | "job_resumed"
+    | "job_cancelled"
+    | "logs_cleared"
+    | "cache_cleared";
   jobId?: string;
   taskId?: string;
   status?: string;
@@ -76,12 +76,12 @@ export class StateManager {
           [STORAGE_KEYS.STORAGE_VERSION]: CURRENT_STORAGE_VERSION,
           [STORAGE_KEYS.JOBS_INDEX]: [],
         });
-        console.info('[StateManager] Initialized storage with version', CURRENT_STORAGE_VERSION);
+        console.info("[StateManager] Initialized storage with version", CURRENT_STORAGE_VERSION);
       } else if (storedVersion !== CURRENT_STORAGE_VERSION) {
         await this.migrateStorage(storedVersion, CURRENT_STORAGE_VERSION);
       }
     } catch (error) {
-      console.error('[StateManager] Initialization error:', error);
+      console.error("[StateManager] Initialization error:", error);
     }
   }
 
@@ -93,9 +93,10 @@ export class StateManager {
   async saveJobState(job: Job): Promise<void> {
     try {
       const completedTasks = job.tasks.filter(
-        (t: { status: string }) => t.status === 'completed' || t.status === 'skipped',
+        (t: { status: string }) => t.status === "completed" || t.status === "skipped"
       ).length;
-      job.progress = job.tasks.length > 0 ? Math.round((completedTasks / job.tasks.length) * 100) : 0;
+      job.progress =
+        job.tasks.length > 0 ? Math.round((completedTasks / job.tasks.length) * 100) : 0;
 
       const storageKey = `${STORAGE_KEYS.JOBS}_${job.id}`;
       await chrome.storage.local.set({ [storageKey]: JSON.parse(JSON.stringify(job)) });
@@ -105,15 +106,15 @@ export class StateManager {
       if (!index.includes(job.id)) {
         index.push(job.id);
         await chrome.storage.local.set({ [STORAGE_KEYS.JOBS_INDEX]: index });
-        this.emitStateChange({ type: 'job_created', jobId: job.id, status: job.status });
+        this.emitStateChange({ type: "job_created", jobId: job.id, status: job.status });
       } else {
-        this.emitStateChange({ type: 'job_updated', jobId: job.id, status: job.status });
+        this.emitStateChange({ type: "job_updated", jobId: job.id, status: job.status });
       }
 
       await this.checkStorageUsage();
-      console.debug('[StateManager] Saved job', job.id);
+      console.debug("[StateManager] Saved job", job.id);
     } catch (error) {
-      console.error('[StateManager] Failed to save job:', error);
+      console.error("[StateManager] Failed to save job:", error);
       throw error;
     }
   }
@@ -127,7 +128,7 @@ export class StateManager {
       const result = await chrome.storage.local.get(storageKey);
       return (result[storageKey] as Job) ?? null;
     } catch (error) {
-      console.error('[StateManager] Failed to get job:', error);
+      console.error("[StateManager] Failed to get job:", error);
       return null;
     }
   }
@@ -140,10 +141,10 @@ export class StateManager {
       const index = await this.getJobsIndex();
       const jobs = await Promise.all(index.map((id) => this.getJobState(id)));
       return (jobs.filter(Boolean) as Job[]).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } catch (error) {
-      console.error('[StateManager] Failed to get all jobs:', error);
+      console.error("[StateManager] Failed to get all jobs:", error);
       return [];
     }
   }
@@ -158,7 +159,7 @@ export class StateManager {
       if (!activeJobId) return null;
       return this.getJobState(activeJobId);
     } catch (error) {
-      console.error('[StateManager] Failed to get active job:', error);
+      console.error("[StateManager] Failed to get active job:", error);
       return null;
     }
   }
@@ -173,10 +174,10 @@ export class StateManager {
       } else {
         await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_JOB]: jobId });
       }
-      this.emitStateChange({ type: 'active_job_changed', jobId: jobId ?? undefined });
-      console.info('[StateManager] Active job set to', jobId);
+      this.emitStateChange({ type: "active_job_changed", jobId: jobId ?? undefined });
+      console.info("[StateManager] Active job set to", jobId);
     } catch (error) {
-      console.error('[StateManager] Failed to set active job:', error);
+      console.error("[StateManager] Failed to set active job:", error);
       throw error;
     }
   }
@@ -188,7 +189,7 @@ export class StateManager {
     jobId: string,
     taskId: string,
     status: TaskStatus,
-    result?: unknown,
+    result?: unknown
   ): Promise<void> {
     const job = await this.getJobState(jobId);
     if (!job) {
@@ -206,7 +207,7 @@ export class StateManager {
     }
 
     await this.saveJobState(job);
-    this.emitStateChange({ type: 'task_updated', jobId, taskId, status });
+    this.emitStateChange({ type: "task_updated", jobId, taskId, status });
   }
 
   /**
@@ -216,10 +217,10 @@ export class StateManager {
     const job = await this.getJobState(jobId);
     if (!job) throw new Error(`Job ${jobId} not found`);
 
-    job.status = 'paused';
+    job.status = "paused";
     await this.saveJobState(job);
-    this.emitStateChange({ type: 'job_paused', jobId, status: 'paused' });
-    console.info('[StateManager] Paused job', jobId);
+    this.emitStateChange({ type: "job_paused", jobId, status: "paused" });
+    console.info("[StateManager] Paused job", jobId);
   }
 
   /**
@@ -229,10 +230,10 @@ export class StateManager {
     const job = await this.getJobState(jobId);
     if (!job) throw new Error(`Job ${jobId} not found`);
 
-    job.status = 'running';
+    job.status = "running";
     await this.saveJobState(job);
-    this.emitStateChange({ type: 'job_resumed', jobId, status: 'running' });
-    console.info('[StateManager] Resumed job', jobId);
+    this.emitStateChange({ type: "job_resumed", jobId, status: "running" });
+    console.info("[StateManager] Resumed job", jobId);
   }
 
   /**
@@ -242,11 +243,11 @@ export class StateManager {
     const job = await this.getJobState(jobId);
     if (!job) throw new Error(`Job ${jobId} not found`);
 
-    job.status = 'cancelled';
+    job.status = "cancelled";
     job.completedAt = new Date().toISOString();
     await this.saveJobState(job);
-    this.emitStateChange({ type: 'job_cancelled', jobId, status: 'cancelled' });
-    console.info('[StateManager] Cancelled job', jobId);
+    this.emitStateChange({ type: "job_cancelled", jobId, status: "cancelled" });
+    console.info("[StateManager] Cancelled job", jobId);
   }
 
   /**
@@ -261,10 +262,10 @@ export class StateManager {
       const updated = index.filter((id) => id !== jobId);
       await chrome.storage.local.set({ [STORAGE_KEYS.JOBS_INDEX]: updated });
 
-      this.emitStateChange({ type: 'job_deleted', jobId });
-      console.info('[StateManager] Deleted job', jobId);
+      this.emitStateChange({ type: "job_deleted", jobId });
+      console.info("[StateManager] Deleted job", jobId);
     } catch (error) {
-      console.error('[StateManager] Failed to delete job:', error);
+      console.error("[StateManager] Failed to delete job:", error);
       throw error;
     }
   }
@@ -293,17 +294,17 @@ export class StateManager {
   async saveConfig(config: UserConfig): Promise<void> {
     try {
       if (!config || !config.llm || !config.vision || !config.browser) {
-        throw new Error('Invalid configuration: missing required sections');
+        throw new Error("Invalid configuration: missing required sections");
       }
 
       const serializable = JSON.parse(JSON.stringify(config)) as UserConfig;
       this.encryptConfigKeys(serializable);
 
       await chrome.storage.local.set({ [STORAGE_KEYS.CONFIG]: serializable });
-      this.emitStateChange({ type: 'config_updated' });
-      console.info('[StateManager] Configuration saved');
+      this.emitStateChange({ type: "config_updated" });
+      console.info("[StateManager] Configuration saved");
     } catch (error) {
-      console.error('[StateManager] Failed to save config:', error);
+      console.error("[StateManager] Failed to save config:", error);
       throw error;
     }
   }
@@ -320,7 +321,7 @@ export class StateManager {
       this.decryptConfigKeys(config);
       return config;
     } catch (error) {
-      console.error('[StateManager] Failed to get config:', error);
+      console.error("[StateManager] Failed to get config:", error);
       return { ...DEFAULT_CONFIG };
     }
   }
@@ -345,9 +346,9 @@ export class StateManager {
       const existing = (result[STORAGE_KEYS.LOGS] as LogEntry[]) ?? [];
       const combined = [...existing, ...entries].slice(-MAX_LOG_ENTRIES);
       await chrome.storage.local.set({ [STORAGE_KEYS.LOGS]: combined });
-      console.debug('[StateManager] Saved', entries.length, 'log entries');
+      console.debug("[StateManager] Saved", entries.length, "log entries");
     } catch (error) {
-      console.error('[StateManager] Failed to save logs:', error);
+      console.error("[StateManager] Failed to save logs:", error);
       throw error;
     }
   }
@@ -366,7 +367,7 @@ export class StateManager {
         }
         if (filter.jobId) {
           logs = logs.filter(
-            (l) => l.context && (l.context as Record<string, unknown>).jobId === filter.jobId,
+            (l) => l.context && (l.context as Record<string, unknown>).jobId === filter.jobId
           );
         }
         if (filter.fromDate) {
@@ -381,7 +382,7 @@ export class StateManager {
 
       return logs;
     } catch (error) {
-      console.error('[StateManager] Failed to get logs:', error);
+      console.error("[StateManager] Failed to get logs:", error);
       return [];
     }
   }
@@ -391,8 +392,8 @@ export class StateManager {
    */
   async clearLogs(): Promise<void> {
     await chrome.storage.local.remove(STORAGE_KEYS.LOGS);
-    this.emitStateChange({ type: 'logs_cleared' });
-    console.info('[StateManager] Logs cleared');
+    this.emitStateChange({ type: "logs_cleared" });
+    console.info("[StateManager] Logs cleared");
   }
 
   /**
@@ -418,9 +419,9 @@ export class StateManager {
         await this.deleteJob(job.id);
       }
 
-      console.info('[StateManager] Cleaned up', toDelete.length, 'old jobs');
+      console.info("[StateManager] Cleaned up", toDelete.length, "old jobs");
     } catch (error) {
-      console.error('[StateManager] Failed to cleanup old jobs:', error);
+      console.error("[StateManager] Failed to cleanup old jobs:", error);
     }
   }
 
@@ -433,7 +434,7 @@ export class StateManager {
       const percentage = Math.round((used / STORAGE_LIMIT) * 100);
       return { used, limit: STORAGE_LIMIT, percentage };
     } catch (error) {
-      console.error('[StateManager] Failed to check storage usage:', error);
+      console.error("[StateManager] Failed to check storage usage:", error);
       return { used: 0, limit: STORAGE_LIMIT, percentage: 0 };
     }
   }
@@ -443,8 +444,8 @@ export class StateManager {
    */
   async cleanupCache(): Promise<void> {
     await chrome.storage.local.remove(STORAGE_KEYS.CACHE);
-    this.emitStateChange({ type: 'cache_cleared' });
-    console.info('[StateManager] Cache cleared');
+    this.emitStateChange({ type: "cache_cleared" });
+    console.info("[StateManager] Cache cleared");
   }
 
   /**
@@ -453,13 +454,13 @@ export class StateManager {
   async ensureStorageSpace(requiredBytes: number): Promise<void> {
     const { used, limit } = await this.checkStorageUsage();
     if (used + requiredBytes > limit) {
-      console.info('[StateManager] Storage low, running cleanup');
+      console.info("[StateManager] Storage low, running cleanup");
       await this.cleanupOldJobs(7);
       await this.cleanupCache();
 
       const afterCleanup = await this.checkStorageUsage();
       if (afterCleanup.used + requiredBytes > limit) {
-        throw new Error('Insufficient storage space after cleanup');
+        throw new Error("Insufficient storage space after cleanup");
       }
     }
   }
@@ -494,12 +495,12 @@ export class StateManager {
       try {
         listener(event);
       } catch (error) {
-        console.error('[StateManager] Listener error:', error);
+        console.error("[StateManager] Listener error:", error);
       }
     }
 
     try {
-      chrome.runtime.sendMessage({ type: 'STATE_CHANGE', payload: event }).catch(() => {
+      chrome.runtime.sendMessage({ type: "STATE_CHANGE", payload: event }).catch(() => {
         // Ignore errors when no listeners are available
       });
     } catch {
@@ -520,10 +521,10 @@ export class StateManager {
    * Migrate storage data between versions.
    */
   async migrateStorage(fromVersion: string, toVersion: string): Promise<void> {
-    console.info('[StateManager] Migrating storage from', fromVersion, 'to', toVersion);
+    console.info("[StateManager] Migrating storage from", fromVersion, "to", toVersion);
     // Future migrations go here
     await chrome.storage.local.set({ [STORAGE_KEYS.STORAGE_VERSION]: toVersion });
-    console.info('[StateManager] Migration complete');
+    console.info("[StateManager] Migration complete");
   }
 
   // ── Private Helpers ───────────────────────────────────────────────────────
@@ -536,7 +537,7 @@ export class StateManager {
   private encryptConfigKeys(config: UserConfig): void {
     for (const providerConfig of Object.values(config.llm.providers)) {
       const provider = providerConfig as unknown as Record<string, unknown>;
-      if ('apiKey' in provider && typeof provider.apiKey === 'string') {
+      if ("apiKey" in provider && typeof provider.apiKey === "string") {
         provider.apiKey = this.encryptApiKey(provider.apiKey);
       }
     }
@@ -545,7 +546,7 @@ export class StateManager {
   private decryptConfigKeys(config: UserConfig): void {
     for (const providerConfig of Object.values(config.llm.providers)) {
       const provider = providerConfig as unknown as Record<string, unknown>;
-      if ('apiKey' in provider && typeof provider.apiKey === 'string') {
+      if ("apiKey" in provider && typeof provider.apiKey === "string") {
         provider.apiKey = this.decryptApiKey(provider.apiKey);
       }
     }
@@ -556,10 +557,10 @@ export class StateManager {
     for (const key of Object.keys(source)) {
       if (
         source[key] &&
-        typeof source[key] === 'object' &&
+        typeof source[key] === "object" &&
         !Array.isArray(source[key]) &&
         target[key] &&
-        typeof target[key] === 'object' &&
+        typeof target[key] === "object" &&
         !Array.isArray(target[key])
       ) {
         output[key] = this.deepMerge(target[key], source[key]);

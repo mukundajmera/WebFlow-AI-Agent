@@ -259,8 +259,14 @@ export class VisionAgent {
         `Return JSON: { "changed": <boolean>, "confidence": <0-100>, "reasoning": "<string>" }`,
     );
 
-    // Send the "after" screenshot as the primary image; include "before" in the prompt context.
-    const combinedPrompt = `${prompt}\n\n[BEFORE screenshot base64]: ${before}`;
+    // Send the "after" screenshot as the primary image; include a truncated
+    // reference to the "before" screenshot to avoid blowing up prompt size.
+    const MAX_BEFORE_BASE64_CHARS = 2048;
+    const beforeSummary =
+      before.length > MAX_BEFORE_BASE64_CHARS
+        ? `${before.slice(0, MAX_BEFORE_BASE64_CHARS)}...[truncated ${before.length - MAX_BEFORE_BASE64_CHARS} chars]`
+        : before;
+    const combinedPrompt = `${prompt}\n\n[BEFORE screenshot base64 (truncated)]: ${beforeSummary}`;
     const response = await this.llm.generateWithVision(
       combinedPrompt,
       after,

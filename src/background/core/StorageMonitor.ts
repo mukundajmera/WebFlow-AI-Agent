@@ -2,7 +2,7 @@
  * Monitors Chrome storage usage and triggers cleanup when thresholds are exceeded.
  */
 
-import type { StateManager } from './StateManager';
+import type { StateManager } from "./StateManager";
 
 export interface StorageReport {
   totalUsed: number;
@@ -36,17 +36,17 @@ export class StorageMonitor {
    */
   startMonitoring(intervalMs: number = DEFAULT_INTERVAL_MS): void {
     if (this.intervalId !== null) {
-      console.info('[StorageMonitor] Already monitoring');
+      console.info("[StorageMonitor] Already monitoring");
       return;
     }
 
     this.intervalId = setInterval(() => {
       this.checkAndCleanup().catch((error) => {
-        console.error('[StorageMonitor] Check failed:', error);
+        console.error("[StorageMonitor] Check failed:", error);
       });
     }, intervalMs);
 
-    console.info('[StorageMonitor] Started monitoring every', intervalMs, 'ms');
+    console.info("[StorageMonitor] Started monitoring every", intervalMs, "ms");
   }
 
   /**
@@ -56,7 +56,7 @@ export class StorageMonitor {
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      console.info('[StorageMonitor] Stopped monitoring');
+      console.info("[StorageMonitor] Stopped monitoring");
     }
   }
 
@@ -67,15 +67,15 @@ export class StorageMonitor {
    */
   async checkAndCleanup(): Promise<void> {
     const usage = await this.stateManager.checkStorageUsage();
-    console.debug('[StorageMonitor] Storage usage:', usage.percentage + '%');
+    console.debug("[StorageMonitor] Storage usage:", usage.percentage + "%");
 
     if (usage.percentage >= CRITICAL_THRESHOLD) {
-      console.info('[StorageMonitor] Critical storage usage, aggressive cleanup');
+      console.info("[StorageMonitor] Critical storage usage, aggressive cleanup");
       await this.stateManager.cleanupOldJobs(3);
       await this.stateManager.cleanupCache();
       await this.stateManager.clearLogs();
     } else if (usage.percentage >= WARNING_THRESHOLD) {
-      console.info('[StorageMonitor] High storage usage, running cleanup');
+      console.info("[StorageMonitor] High storage usage, running cleanup");
       await this.stateManager.cleanupOldJobs(14);
       await this.stateManager.cleanupCache();
     }
@@ -87,10 +87,10 @@ export class StorageMonitor {
   async getStorageReport(): Promise<StorageReport> {
     try {
       const [jobsBytes, logsBytes, configBytes, cacheBytes, totalUsed] = await Promise.all([
-        chrome.storage.local.getBytesInUse('browserai_jobs_index'),
-        chrome.storage.local.getBytesInUse('browserai_logs'),
-        chrome.storage.local.getBytesInUse('browserai_config'),
-        chrome.storage.local.getBytesInUse('browserai_cache'),
+        chrome.storage.local.getBytesInUse("browserai_jobs_index"),
+        chrome.storage.local.getBytesInUse("browserai_logs"),
+        chrome.storage.local.getBytesInUse("browserai_config"),
+        chrome.storage.local.getBytesInUse("browserai_cache"),
         chrome.storage.local.getBytesInUse(null),
       ]);
 
@@ -102,14 +102,16 @@ export class StorageMonitor {
 
       const recommendations: string[] = [];
       if (percentage >= CRITICAL_THRESHOLD) {
-        recommendations.push('Critical: Storage nearly full. Delete old jobs immediately.');
-        recommendations.push('Clear logs and cache to free space.');
+        recommendations.push("Critical: Storage nearly full. Delete old jobs immediately.");
+        recommendations.push("Clear logs and cache to free space.");
       } else if (percentage >= WARNING_THRESHOLD) {
-        recommendations.push('Storage usage is high. Consider cleaning up old jobs.');
-        recommendations.push('Review and clear unnecessary cached data.');
+        recommendations.push("Storage usage is high. Consider cleaning up old jobs.");
+        recommendations.push("Review and clear unnecessary cached data.");
       }
       if (logsBytes > STORAGE_LIMIT * 0.2) {
-        recommendations.push('Logs are using significant storage. Consider exporting and clearing.');
+        recommendations.push(
+          "Logs are using significant storage. Consider exporting and clearing."
+        );
       }
 
       return {
@@ -126,13 +128,13 @@ export class StorageMonitor {
         recommendations,
       };
     } catch (error) {
-      console.error('[StorageMonitor] Failed to generate report:', error);
+      console.error("[StorageMonitor] Failed to generate report:", error);
       return {
         totalUsed: 0,
         totalLimit: STORAGE_LIMIT,
         percentage: 0,
         breakdown: { jobs: 0, screenshots: 0, logs: 0, config: 0, cache: 0 },
-        recommendations: ['Unable to generate storage report.'],
+        recommendations: ["Unable to generate storage report."],
       };
     }
   }

@@ -94,14 +94,30 @@ export class BrowserAgent {
         quality,
       });
 
+      // Determine the actual image dimensions from the data URL
+      const { width, height } = await new Promise<{ width: number; height: number }>((resolve) => {
+        try {
+          const img = new Image();
+          img.onload = () => {
+            resolve({ width: img.naturalWidth || 0, height: img.naturalHeight || 0 });
+          };
+          img.onerror = () => {
+            resolve({ width: 0, height: 0 });
+          };
+          img.src = dataUrl;
+        } catch {
+          resolve({ width: 0, height: 0 });
+        }
+      });
+
       // Strip the data-URL prefix to get raw base64
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
 
       return {
         data: base64,
         format,
-        width: options?.maxWidth ?? 0,
-        height: 0,
+        width,
+        height,
         timestamp: new Date().toISOString(),
         isCompressed: format === "jpeg",
       };
@@ -117,7 +133,7 @@ export class BrowserAgent {
   async getDOMState(): Promise<DOMState> {
     const tab = await this.getCurrentTab();
     const response = await this.sendToContentScript(tab.id!, {
-      action: "getDOMState",
+      type: "GET_DOM_STATE",
     });
 
     if (!response || response.error) {
@@ -139,25 +155,14 @@ export class BrowserAgent {
     const start = Date.now();
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = typeof target === "string"
+        ? { type: "click", target: { type: "css", selector: target }, options }
+        : { type: "click", target: { type: "coordinates", x: target.x, y: target.y }, options };
 
-      if (typeof target === "string") {
-        if (options?.scrollIntoView) {
-          await this.sendToContentScript(tab.id!, {
-            action: "scrollIntoView",
-            selector: target,
-          });
-        }
-        await this.sendToContentScript(tab.id!, {
-          action: "click",
-          selector: target,
-        });
-      } else {
-        await this.sendToContentScript(tab.id!, {
-          action: "clickCoordinates",
-          x: target.x,
-          y: target.y,
-        });
-      }
+      await this.sendToContentScript(tab.id!, {
+        type: "EXECUTE_ACTION",
+        payload: action,
+      });
 
       if (options?.waitAfter) {
         await this.delay(options.waitAfter);
@@ -178,19 +183,23 @@ export class BrowserAgent {
     const start = Date.now();
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = {
+        type: "type",
+        target: { type: "css", selector },
+        value: text,
+        options: {
+          ...options,
+        },
+      };
 
+      // Set clearFirst via the value field convention used by the content script
       if (options?.clearFirst) {
-        await this.sendToContentScript(tab.id!, {
-          action: "clearInput",
-          selector,
-        });
+        (action as any).clearFirst = true;
       }
 
       await this.sendToContentScript(tab.id!, {
-        action: "type",
-        selector,
-        text,
-        delay: options?.delay,
+        type: "EXECUTE_ACTION",
+        payload: action,
       });
 
       if (options?.waitAfter) {
@@ -214,9 +223,14 @@ export class BrowserAgent {
     const start = Date.now();
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = {
+        type: "type",
+        target: { type: "coordinates", x: coords.x, y: coords.y },
+        value: text,
+      };
       await this.sendToContentScript(tab.id!, {
-        action: "typeAtActiveElement",
-        text,
+        type: "EXECUTE_ACTION",
+        payload: action,
       });
       return this.ok(start);
     } catch (error) {
@@ -229,10 +243,14 @@ export class BrowserAgent {
     const start = Date.now();
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = {
+        type: "upload",
+        target: { type: "css", selector },
+        value: filePath,
+      };
       await this.sendToContentScript(tab.id!, {
-        action: "uploadFile",
-        selector,
-        filePath,
+        type: "EXECUTE_ACTION",
+        payload: action,
       });
       return this.ok(start);
     } catch (error) {
@@ -251,28 +269,23 @@ export class BrowserAgent {
     const start = Date.now();
 
     try {
-      const tab = await this.getCurrentTab();
-
-      switch (condition.type) {
-        case "timeout":
-          await this.delay(condition.duration);
-          break;
-
-        case "element_visible":
-        case "element_hidden":
-        case "text_visible":
-        case "network_idle":
-        case "url_match":
-          await this.sendToContentScript(tab.id!, {
-            action: "wait",
-            condition,
-            timeout,
-          });
-          break;
-
-        default:
-          return this.fail(new Error(`Unknown wait condition: ${(condition as any).type}`), start);
+      if (condition.type === "timeout") {
+        await this.delay(condition.duration);
+        return this.ok(start);
       }
+
+      const tab = await this.getCurrentTab();
+      const action: BrowserAction = {
+        type: "wait",
+        options: { timeout },
+      };
+      (action as any).condition = condition;
+      (action as any).timeout = timeout;
+
+      await this.sendToContentScript(tab.id!, {
+        type: "EXECUTE_ACTION",
+        payload: action,
+      });
 
       return this.ok(start);
     } catch (error) {
@@ -302,18 +315,23 @@ export class BrowserAgent {
     try {
       const tab = await this.getCurrentTab();
 
+      const action: BrowserAction = {
+        type: "scroll",
+      };
+
       if (direction === "to_element" && typeof amount === "string") {
-        await this.sendToContentScript(tab.id!, {
-          action: "scrollToElement",
-          selector: amount,
-        });
+        (action as any).direction = direction;
+        action.target = { type: "css", selector: amount };
+        (action as any).toElement = true;
       } else {
-        await this.sendToContentScript(tab.id!, {
-          action: "scroll",
-          direction,
-          amount: typeof amount === "number" ? amount : 300,
-        });
+        (action as any).direction = direction;
+        (action as any).amount = typeof amount === "number" ? amount : 300;
       }
+
+      await this.sendToContentScript(tab.id!, {
+        type: "EXECUTE_ACTION",
+        payload: action,
+      });
 
       return this.ok(start);
     } catch (error) {
@@ -326,19 +344,14 @@ export class BrowserAgent {
     const start = Date.now();
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = typeof target === "string"
+        ? { type: "hover", target: { type: "css", selector: target } }
+        : { type: "hover", target: { type: "coordinates", x: target.x, y: target.y } };
 
-      if (typeof target === "string") {
-        await this.sendToContentScript(tab.id!, {
-          action: "hover",
-          selector: target,
-        });
-      } else {
-        await this.sendToContentScript(tab.id!, {
-          action: "hoverCoordinates",
-          x: target.x,
-          y: target.y,
-        });
-      }
+      await this.sendToContentScript(tab.id!, {
+        type: "EXECUTE_ACTION",
+        payload: action,
+      });
 
       return this.ok(start);
     } catch (error) {
@@ -351,10 +364,15 @@ export class BrowserAgent {
     const start = Date.now();
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = {
+        type: "press_key",
+        value: key,
+      };
+      (action as any).modifiers = modifiers ?? [];
+
       await this.sendToContentScript(tab.id!, {
-        action: "pressKey",
-        key,
-        modifiers: modifiers ?? [],
+        type: "EXECUTE_ACTION",
+        payload: action,
       });
       return this.ok(start);
     } catch (error) {
@@ -374,9 +392,13 @@ export class BrowserAgent {
     }
 
     const tab = await this.getCurrentTab();
+    const action: BrowserAction = {
+      type: "evaluate",
+      value: script,
+    };
     const result = await this.sendToContentScript(tab.id!, {
-      action: "evaluate",
-      script,
+      type: "EXECUTE_ACTION",
+      payload: action,
     });
 
     if (result?.error) {
@@ -397,7 +419,15 @@ export class BrowserAgent {
         if (!target) return this.fail(new Error("Click action requires a target"), Date.now());
         if (target.type === "css") return this.click(target.selector, action.options);
         if (target.type === "coordinates") return this.click({ x: target.x, y: target.y }, action.options);
-        if (target.type === "semantic") return this.click(target.description, action.options);
+        if (target.type === "semantic") {
+          return this.fail(
+            new Error(
+              `Semantic target "${target.description}" cannot be routed directly. ` +
+              "Use clickWithHealing() with a VisionAgent for semantic element resolution.",
+            ),
+            Date.now(),
+          );
+        }
         return this.fail(new Error("Unknown target type"), Date.now());
       }
 
@@ -428,7 +458,16 @@ export class BrowserAgent {
         if (!target) return this.fail(new Error("Hover action requires a target"), Date.now());
         if (target.type === "css") return this.hover(target.selector);
         if (target.type === "coordinates") return this.hover({ x: target.x, y: target.y });
-        return this.hover(target.description);
+        if (target.type === "semantic") {
+          return this.fail(
+            new Error(
+              `Semantic target "${target.description}" cannot be routed directly. ` +
+              "Use findElementWithHealing() with a VisionAgent for semantic element resolution.",
+            ),
+            Date.now(),
+          );
+        }
+        return this.fail(new Error("Unknown target type"), Date.now());
       }
 
       case "press_key": {
@@ -534,13 +573,20 @@ export class BrowserAgent {
     description: string,
     visionAgent: IVisionAgent,
   ): Promise<ActionResult> {
-    // First attempt
+    // For semantic targets, skip direct click and go straight to vision-based healing
+    if (target.type === "semantic") {
+      console.info("[BrowserAgent] Semantic target, using vision-based healing for:", target.description);
+      const healed = await this.findElementWithHealing("", target.description, visionAgent);
+      if (healed.type === "css") return this.click(healed.selector);
+      if (healed.type === "coordinates") return this.click({ x: healed.x, y: healed.y });
+      return this.fail(new Error("Failed to resolve semantic target"), Date.now());
+    }
+
+    // First attempt for CSS/coordinate targets
     const firstResult =
       target.type === "css"
         ? await this.click(target.selector)
-        : target.type === "coordinates"
-          ? await this.click({ x: target.x, y: target.y })
-          : await this.click(target.description);
+        : await this.click({ x: target.x, y: target.y });
 
     if (firstResult.success) return firstResult;
 
@@ -548,16 +594,14 @@ export class BrowserAgent {
     const selectorStr =
       target.type === "css"
         ? target.selector
-        : target.type === "semantic"
-          ? target.description
-          : `[${target.x},${target.y}]`;
+        : `[${target.x},${target.y}]`;
 
     console.info("[BrowserAgent] Click failed, attempting healing for:", selectorStr);
 
     const healed = await this.findElementWithHealing(selectorStr, description, visionAgent);
     if (healed.type === "css") return this.click(healed.selector);
     if (healed.type === "coordinates") return this.click({ x: healed.x, y: healed.y });
-    return this.click(healed.description);
+    return this.fail(new Error("Failed to heal selector"), Date.now());
   }
 
   /**
@@ -581,7 +625,7 @@ export class BrowserAgent {
 
     if (healed.type === "css") return this.type(healed.selector, text);
     if (healed.type === "coordinates") return this.typeAtCoordinates({ x: healed.x, y: healed.y }, text);
-    return this.type(healed.description, text);
+    return this.fail(new Error("Failed to heal selector for type action"), Date.now());
   }
 
   // ─── Utilities ────────────────────────────────────────────────────
@@ -616,11 +660,18 @@ export class BrowserAgent {
   async isElementVisible(selector: string): Promise<boolean> {
     try {
       const tab = await this.getCurrentTab();
+      const action: BrowserAction = {
+        type: "wait",
+        options: { timeout: 100 },
+      };
+      (action as any).condition = { type: "element_visible", selector };
+      (action as any).timeout = 100;
+
       const response = await this.sendToContentScript(tab.id!, {
-        action: "isElementVisible",
-        selector,
+        type: "EXECUTE_ACTION",
+        payload: action,
       });
-      return response?.data === true;
+      return response?.success === true;
     } catch {
       return false;
     }
