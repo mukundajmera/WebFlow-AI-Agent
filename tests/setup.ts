@@ -8,6 +8,7 @@ const mockChrome = {
       set: vi.fn().mockResolvedValue(undefined),
       remove: vi.fn().mockResolvedValue(undefined),
       clear: vi.fn().mockResolvedValue(undefined),
+      getBytesInUse: vi.fn().mockResolvedValue(0),
     },
     onChanged: {
       addListener: vi.fn(),
@@ -20,8 +21,12 @@ const mockChrome = {
       addListener: vi.fn(),
       removeListener: vi.fn(),
     },
+    onInstalled: {
+      addListener: vi.fn(),
+    },
     getURL: vi.fn((path: string) => `chrome-extension://mock-id/${path}`),
     id: "mock-extension-id",
+    lastError: null as chrome.runtime.LastError | null,
   },
   tabs: {
     query: vi.fn().mockResolvedValue([]),
@@ -34,9 +39,15 @@ const mockChrome = {
     open: vi.fn().mockResolvedValue(undefined),
     setOptions: vi.fn().mockResolvedValue(undefined),
   },
+  action: {
+    onClicked: {
+      addListener: vi.fn(),
+    },
+  },
   scripting: {
     executeScript: vi.fn().mockResolvedValue([]),
   },
+  identity: undefined as unknown,
 };
 
 // Assign to global
