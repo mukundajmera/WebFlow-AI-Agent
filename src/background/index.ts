@@ -132,13 +132,12 @@ async function handleStartJob(payload: { prompt: string }): Promise<MessageRespo
 
   console.info("[Background] Starting job with prompt:", prompt);
 
+  const config = await stateManager.getConfig();
   const job: Job = {
     id: crypto.randomUUID(),
     prompt,
     config: {
-      llmProvider: (await stateManager.getConfig()).llm.providers[
-        (await stateManager.getConfig()).llm.defaultProvider
-      ],
+      llmProvider: config.llm.providers[config.llm.defaultProvider],
       templateMode: "same",
       exportFormat: "png",
     },

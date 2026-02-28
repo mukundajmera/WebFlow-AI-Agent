@@ -271,7 +271,13 @@ ipcMain.handle("select-file", async () => {
   return { path: filePath, content };
 });
 
-ipcMain.handle("save-file", async (_event, data: { filename: string; content: string; filters: Electron.FileFilter[] }) => {
+interface SaveFileRequest {
+  filename: string;
+  content: string;
+  filters: Electron.FileFilter[];
+}
+
+ipcMain.handle("save-file", async (_event, data: SaveFileRequest) => {
   if (!mainWindow) return null;
 
   const result = await dialog.showSaveDialog(mainWindow, {

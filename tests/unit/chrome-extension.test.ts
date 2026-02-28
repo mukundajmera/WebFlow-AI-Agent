@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import path from "path";
 
 /**
  * Tests for the Canva and Figma platform-specific content scripts
@@ -218,11 +219,11 @@ describe("Enhanced Background Service Worker", () => {
 // ===========================================================================
 
 describe("Manifest Configuration", () => {
+  const PKG_PATH = path.resolve(__dirname, "../../package.json");
+
   it("package.json manifest has required permissions", async () => {
     const { readFileSync } = await import("fs");
-    const pkg = JSON.parse(
-      readFileSync("/home/runner/work/WebFlow-AI-Agent/WebFlow-AI-Agent/package.json", "utf-8")
-    );
+    const pkg = JSON.parse(readFileSync(PKG_PATH, "utf-8"));
 
     const permissions: string[] = pkg.manifest.permissions;
     expect(permissions).toContain("tabs");
@@ -236,22 +237,18 @@ describe("Manifest Configuration", () => {
 
   it("package.json manifest has Canva, Figma, and Google Sheets host permissions", async () => {
     const { readFileSync } = await import("fs");
-    const pkg = JSON.parse(
-      readFileSync("/home/runner/work/WebFlow-AI-Agent/WebFlow-AI-Agent/package.json", "utf-8")
-    );
+    const pkg = JSON.parse(readFileSync(PKG_PATH, "utf-8"));
 
     const hostPerms: string[] = pkg.manifest.host_permissions;
-    expect(hostPerms.some((h: string) => h.includes("canva.com"))).toBe(true);
-    expect(hostPerms.some((h: string) => h.includes("figma.com"))).toBe(true);
-    expect(hostPerms.some((h: string) => h.includes("sheets.googleapis.com"))).toBe(true);
-    expect(hostPerms.some((h: string) => h.includes("localhost"))).toBe(true);
+    expect(hostPerms).toContain("https://*.canva.com/*");
+    expect(hostPerms).toContain("https://*.figma.com/*");
+    expect(hostPerms).toContain("https://sheets.googleapis.com/*");
+    expect(hostPerms).toContain("http://localhost:*/*");
   });
 
   it("package.json manifest has CSP and web_accessible_resources", async () => {
     const { readFileSync } = await import("fs");
-    const pkg = JSON.parse(
-      readFileSync("/home/runner/work/WebFlow-AI-Agent/WebFlow-AI-Agent/package.json", "utf-8")
-    );
+    const pkg = JSON.parse(readFileSync(PKG_PATH, "utf-8"));
 
     expect(pkg.manifest.content_security_policy).toBeDefined();
     expect(pkg.manifest.content_security_policy.extension_pages).toContain("script-src 'self'");
