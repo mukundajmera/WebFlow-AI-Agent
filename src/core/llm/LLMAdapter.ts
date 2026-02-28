@@ -107,7 +107,23 @@ export class LLMAdapter {
     }
 
     console.debug("[LLMAdapter] generateWithVision – sending with image");
-    return this.provider.complete(messages, options);
+
+    // Prefer a vision-capable method if the provider implements it.
+    const providerWithVision = this.provider as LLMProviderInterface & {
+      completeWithVision?: (messages: LLMMessage[], options?: GenerateOptions) => Promise<LLMResponse>;
+    };
+    const response =
+      typeof providerWithVision.completeWithVision === "function"
+        ? await providerWithVision.completeWithVision(messages, options)
+        : await this.provider.complete(messages, options);
+
+    // Keep vision turns in the conversation history.
+    this.conversationHistory.push(
+      { role: "user", content: prompt, imageUrl: screenshot },
+      { role: "assistant", content: response.content },
+    );
+
+    return response;
   }
 
   /**
@@ -180,10 +196,10 @@ export class LLMAdapter {
     try {
       return JSON.parse(cleaned) as T;
     } catch {
-      // Fall back: extract first JSON object or array
-      const match = cleaned.match(/[\[{][\s\S]*[\]}]/);
-      if (match) {
-        return JSON.parse(match[0]) as T;
+      // Fall back: extract first complete JSON object or array using brace balancing
+      const extracted = this.extractFirstJSON(cleaned);
+      if (extracted) {
+        return JSON.parse(extracted) as T;
       }
       throw new Error("LLMAdapter: could not extract JSON from response");
     }
@@ -221,5 +237,47 @@ export class LLMAdapter {
   /** Promise-based sleep helper for retry back-off. */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Extract the first complete JSON object or array from a string using
+   * brace/bracket balancing to avoid the greedy-regex problem.
+   */
+  private extractFirstJSON(text: string): string | null {
+    const startIdx = text.search(/[\[{]/);
+    if (startIdx === -1) return null;
+
+    const open = text[startIdx];
+    const close = open === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = startIdx; i < text.length; i++) {
+      const ch = text[i];
+
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+
+      if (ch === open || ch === (open === "{" ? "[" : "{")) depth++;
+      if (ch === close || ch === (close === "}" ? "]" : "}")) depth--;
+
+      if (depth === 0) {
+        return text.slice(startIdx, i + 1);
+      }
+    }
+
+    return null;
   }
 }

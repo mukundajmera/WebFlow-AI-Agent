@@ -154,6 +154,18 @@ export class OllamaProvider implements LLMProviderInterface {
           }
         }
       }
+
+      // Parse any remaining data left in the buffer after the stream ends
+      const remaining = buffer.trim();
+      if (remaining) {
+        const parsed = JSON.parse(remaining) as OllamaChatResponse;
+        model = parsed.model;
+        const content = parsed.message?.content;
+        if (content) {
+          accumulated += content;
+          onChunk(content);
+        }
+      }
     } finally {
       reader.releaseLock();
     }

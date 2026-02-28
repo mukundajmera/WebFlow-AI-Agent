@@ -58,7 +58,7 @@ const clickButtonWorkflow: Workflow = {
       description: "Click the target button",
     },
     {
-      action: { type: "wait", value: { type: "timeout", duration: 1000 } },
+      action: { type: "wait", options: { timeout: 1000 } },
       description: "Wait for the action to take effect",
     },
   ],
@@ -142,8 +142,9 @@ export class GenericWebAdapter implements BaseAdapter {
       `Forms on page: ${domState.forms.length}`,
       `Previous actions:\n${previousSummary}`,
       "",
-      "Decide the single next BrowserAction to take. Return JSON:",
-      '{ "type": "<ActionType>", "target": { ... }, "value": <any> }',
+      "Decide the single next BrowserAction to take. Return JSON with one of these shapes:",
+      '- For most actions: { "type": "<ActionType>", "target": { ... }, "value": <any> }',
+      '- For wait actions: { "type": "wait", "target": { "type": "css", "selector": "<selector>" }, "options": { "timeout": <ms> } }',
     ].join("\n");
   }
 

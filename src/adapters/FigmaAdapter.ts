@@ -51,7 +51,7 @@ const openFileWorkflow: Workflow = {
       description: "Click the file card to open it",
     },
     {
-      action: { type: "wait", value: { type: "element_visible", selector: SELECTORS.canvas } },
+      action: { type: "wait", target: { type: "css", selector: SELECTORS.canvas }, options: { timeout: 5000 } },
       description: "Wait for the Figma canvas to load",
     },
   ],
@@ -67,24 +67,24 @@ const editTextWorkflow: Workflow = {
       description: "Click the text node on the canvas",
     },
     {
-      action: { type: "wait", value: { type: "timeout", duration: 300 } },
+      action: { type: "wait", options: { timeout: 300 } },
       description: "Wait for the node to be selected",
     },
     {
-      action: { type: "press_key", value: "Enter" },
-      description: "Press Enter to enter text editing mode",
+      action: { type: "click", target: { type: "semantic", description: "{{text_layer_description}}" } },
+      description: "Double-click the text node to enter editing mode",
     },
     {
-      action: { type: "press_key", value: "Control+a" },
-      description: "Select all text in the node",
+      action: { type: "wait", options: { timeout: 200 } },
+      description: "Wait for text editing mode to activate",
     },
     {
       action: { type: "type", target: { type: "css", selector: SELECTORS.canvas }, value: "{{new_text}}" },
       description: "Type the replacement text",
     },
     {
-      action: { type: "press_key", value: "Escape" },
-      description: "Press Escape to exit text editing mode",
+      action: { type: "click", target: { type: "css", selector: SELECTORS.viewport } },
+      description: "Click outside to exit text editing mode",
     },
   ],
 };
@@ -99,7 +99,7 @@ const exportWorkflow: Workflow = {
       description: "Click the Export button in the right panel",
     },
     {
-      action: { type: "wait", value: { type: "element_visible", selector: SELECTORS.exportDialog } },
+      action: { type: "wait", target: { type: "css", selector: SELECTORS.exportDialog }, options: { timeout: 3000 } },
       description: "Wait for the export dialog to appear",
     },
     {
@@ -112,7 +112,7 @@ const exportWorkflow: Workflow = {
       description: "Click the Export button to download",
     },
     {
-      action: { type: "wait", value: { type: "timeout", duration: 3000 } },
+      action: { type: "wait", options: { timeout: 3000 } },
       description: "Wait for the download to start",
     },
   ],
@@ -228,8 +228,10 @@ export class FigmaAdapter implements BaseAdapter {
       `Previous actions:\n${previousSummary}`,
       tipBlock,
       "",
-      "Decide the single next BrowserAction to take. Return JSON:",
-      '{ "type": "<ActionType>", "target": { ... }, "value": <any> }',
+      "Decide the single next BrowserAction to take.",
+      "Return a single JSON object in one of the following shapes:",
+      '- For most actions: { "type": "<ActionType>", "target": { ... }, "value": <any> }',
+      '- For wait actions: { "type": "wait", "target": { "type": "css", "selector": "<selector>" }, "options": { "timeout": <ms> } }',
     ].join("\n");
   }
 

@@ -66,7 +66,7 @@ const createFromTemplateWorkflow: Workflow = {
       description: "Enter the template search query",
     },
     {
-      action: { type: "wait", value: { type: "element_visible", selector: SELECTORS.templateCard } },
+      action: { type: "wait", target: { type: "css", selector: SELECTORS.templateCard }, options: { timeout: 5000 } },
       description: "Wait for template results to appear",
     },
     {
@@ -74,7 +74,7 @@ const createFromTemplateWorkflow: Workflow = {
       description: "Click the first matching template card",
     },
     {
-      action: { type: "wait", value: { type: "element_visible", selector: SELECTORS.useTemplateButton } },
+      action: { type: "wait", target: { type: "css", selector: SELECTORS.useTemplateButton }, options: { timeout: 3000 } },
       description: "Wait for the template preview to load",
     },
     {
@@ -94,7 +94,7 @@ const editTextWorkflow: Workflow = {
       description: "Click the text layer to select it",
     },
     {
-      action: { type: "wait", value: { type: "timeout", duration: 500 } },
+      action: { type: "wait", options: { timeout: 500 } },
       description: "Wait for layer selection",
     },
     {
@@ -118,7 +118,11 @@ const replaceImageWorkflow: Workflow = {
       description: "Click the image layer to select it",
     },
     {
-      action: { type: "wait", value: { type: "element_visible", selector: '[data-testid="replace-button"]' } },
+      action: {
+        type: "wait",
+        target: { type: "css", selector: '[data-testid="replace-button"]' },
+        options: { timeout: 2000 },
+      },
       description: "Wait for the replace option to appear",
     },
     {
@@ -126,8 +130,8 @@ const replaceImageWorkflow: Workflow = {
       description: "Click the replace button",
     },
     {
-      action: { type: "upload", target: { type: "css", selector: SELECTORS.uploadsButton }, value: "{{image_path}}" },
-      description: "Upload the replacement image",
+      action: { type: "click", target: { type: "css", selector: SELECTORS.uploadsButton } },
+      description: "Open the uploads panel to choose a replacement image",
     },
   ],
 };
@@ -142,7 +146,7 @@ const exportWorkflow: Workflow = {
       description: "Open the Share menu",
     },
     {
-      action: { type: "wait", value: { type: "element_visible", selector: SELECTORS.downloadButton } },
+      action: { type: "wait", target: { type: "css", selector: SELECTORS.downloadButton }, options: { timeout: 3000 } },
       description: "Wait for the download option",
     },
     {
@@ -163,7 +167,7 @@ const exportWorkflow: Workflow = {
       description: "Click the Export / Download button",
     },
     {
-      action: { type: "wait", value: { type: "timeout", duration: 5000 } },
+      action: { type: "wait", options: { timeout: 5000 } },
       description: "Wait for the export to complete",
     },
   ],
@@ -286,8 +290,10 @@ export class CanvaAdapter implements BaseAdapter {
       `Previous actions:\n${previousSummary}`,
       tipBlock,
       "",
-      "Decide the single next BrowserAction to take. Return JSON:",
-      '{ "type": "<ActionType>", "target": { ... }, "value": <any> }',
+      "Decide the single next BrowserAction to take.",
+      "Return a single JSON object in one of the following shapes:",
+      '- For most actions: { "type": "<ActionType>", "target": { ... }, "value": <any> }',
+      '- For wait actions: { "type": "wait", "target": { "type": "css", "selector": "<selector>" }, "options": { "timeout": <ms> } }',
     ].join("\n");
   }
 

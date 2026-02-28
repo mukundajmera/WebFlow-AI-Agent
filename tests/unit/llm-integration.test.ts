@@ -93,6 +93,16 @@ describe("ProviderFactory", () => {
     const config: LLMConfig = { type: "webllm" };
     expect(() => createProvider(config)).toThrow("WebLLM provider is not yet implemented");
   });
+
+  it("createProvider with groq without apiKey throws provider-specific message", () => {
+    const config: LLMConfig = { type: "groq" };
+    expect(() => createProvider(config)).toThrow("Groq provider requires an API key");
+  });
+
+  it("createProvider with deepseek without apiKey throws provider-specific message", () => {
+    const config: LLMConfig = { type: "deepseek" };
+    expect(() => createProvider(config)).toThrow("DeepSeek provider requires an API key");
+  });
 });
 
 // ===========================================================================
@@ -134,6 +144,21 @@ describe("LLMAdapter", () => {
     await expect(ollamaAdapter.generateWithVision("prompt", "base64img")).rejects.toThrow(
       "does not support vision",
     );
+  });
+
+  it("generateWithVision forwards image payload and saves history", async () => {
+    mockFetchForOpenAI("vision response");
+
+    const response = await adapter.generateWithVision("describe this", "base64img");
+    expect(response.content).toBe("vision response");
+    expect(global.fetch).toHaveBeenCalled();
+
+    // Vision calls should save conversation history
+    const history = adapter.getHistory();
+    expect(history.length).toBe(2);
+    expect(history[0].role).toBe("user");
+    expect(history[0].imageUrl).toBe("base64img");
+    expect(history[1].role).toBe("assistant");
   });
 
   it("parseJSON extracts JSON from plain string", () => {

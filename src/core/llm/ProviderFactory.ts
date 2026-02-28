@@ -58,12 +58,22 @@ export function createProvider(config: LLMConfig): LLMProviderInterface {
       return new OllamaProvider(config);
 
     case "groq":
+      if (!config.apiKey) {
+        throw new Error(
+          "Groq provider requires an API key. Please set `apiKey` in your Groq configuration.",
+        );
+      }
       return new OpenAIProvider({
         ...config,
         endpoint: config.endpoint ?? "https://api.groq.com/openai/v1",
       });
 
     case "deepseek":
+      if (!config.apiKey) {
+        throw new Error(
+          "DeepSeek provider requires an API key. Please set `apiKey` in your DeepSeek configuration.",
+        );
+      }
       return new OpenAIProvider({
         ...config,
         endpoint: config.endpoint ?? "https://api.deepseek.com/v1",
